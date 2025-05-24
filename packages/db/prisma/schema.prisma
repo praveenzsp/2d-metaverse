@@ -14,11 +14,11 @@ datasource db {
 model User {
   id       String  @id @unique @default(cuid())
   username String  @unique
-  password String  @unique
-  avatarId String  // Reference to the user's avatar
+  password String
+  avatarId String?  // Reference to the user's avatar
   role     Role    // User role (Admin or regular User)
   spaces   Space[] // List of all spaces created by this user
-  avatar   Avatar @relation(fields: [avatarId], references: [id])  // The avatar representing this user
+  avatar   Avatar? @relation(fields: [avatarId], references: [id])  // The avatar representing this user
 }
 
 // Space model represents a virtual space/room in the metaverse
