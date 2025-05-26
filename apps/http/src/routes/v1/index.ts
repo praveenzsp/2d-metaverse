@@ -1,4 +1,3 @@
-import { User } from './../../../../../packages/db/node_modules/.prisma/client/index.d';
 import { Router } from "express";
 import userRouter from "./user";
 import spaceRouter from "./space";
@@ -63,7 +62,7 @@ router.post("/signin", async (req, res)=>{
 			return;
 		}
 
-		const token = jwt.sign({userId : user.id}, JWT_SECRET);
+		const token = jwt.sign({userId : user.id, role: user.role}, JWT_SECRET);
 
 		res.status(200).json({token});
 		return;

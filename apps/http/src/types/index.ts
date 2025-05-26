@@ -55,5 +55,13 @@ export const CreateMapSchema = z.object({
 	}))
 });
 
+declare global {
+	namespace Express {
+		interface Request {
+			userId: string;
+		}
+	}
+}
+
 
 
