@@ -22,11 +22,16 @@ export const CreateSpaceSchema = z.object({
 	mapId: z.string(),
 });
 
-export const AddElementSchema = z.object({
+export const AddElementToSpaceSchema = z.object({
 	elementId: z.string(),
 	spaceId: z.string(),
 	x: z.number(),
 	y: z.number(),
+});
+
+export const DeleteElementFromSpaceSchema = z.object({
+	id: z.string(),
+
 });
 
 export const CreateElementSchema = z.object({

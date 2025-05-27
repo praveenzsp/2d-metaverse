@@ -1,12 +1,12 @@
 import { Router, Request, Response } from "express";
-import { userMiddleware } from "../../middleware/user";
+import { userAuthMiddleware } from "../../middleware/user";
 import { UpdateMetadataSchema } from "../../types";
 import prisma from "@repo/db/client";
 
 const userRouter=Router();
 
 
-userRouter.post("/metadata", userMiddleware, async (req: Request, res: Response)=>{
+userRouter.post("/metadata", userAuthMiddleware, async (req: Request, res: Response)=>{
 	const parsedData = UpdateMetadataSchema.safeParse(req.body);
 
 	if(!parsedData.success){
@@ -35,7 +35,7 @@ userRouter.post("/metadata", userMiddleware, async (req: Request, res: Response)
 	}
 })
 
-userRouter.get("/metadata/bulk", userMiddleware, async(req: Request, res: Response)=>{
+userRouter.get("/metadata/bulk", userAuthMiddleware, async(req: Request, res: Response)=>{
 	// Parse the ids query parameter
 	const idsParam = req.query.ids;
 	if (!idsParam || typeof idsParam !== 'string') {

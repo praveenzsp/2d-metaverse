@@ -52,6 +52,7 @@ model Element {
   id       String @id @unique @default(cuid())
   width    Int
   height   Int
+  static   Boolean
   imageUrl String
   spaces spaceElements[] // All spaces where this element is placed
   mapElements MapElements[] // All maps where this element is placed

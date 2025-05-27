@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from "express";
 import { JWT_SECRET } from "../config";
 
 
-export const userMiddleware=(req: Request, res: Response, next: NextFunction)=>{
+export const userAuthMiddleware = (req: Request, res: Response, next: NextFunction)=>{
 	const header=req.headers.authorization;
 
 	if(!header){
