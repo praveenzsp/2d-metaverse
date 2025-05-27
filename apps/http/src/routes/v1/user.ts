@@ -36,9 +36,26 @@ userRouter.post("/metadata", userMiddleware, async (req: Request, res: Response)
 })
 
 userRouter.get("/metadata/bulk", userMiddleware, async(req: Request, res: Response)=>{
-	const userIds = (req.query.ids) as string[];
+	// Parse the ids query parameter
+	const idsParam = req.query.ids;
+	if (!idsParam || typeof idsParam !== 'string') {
+		res.status(400).json({ message: "Missing or invalid ids parameter" });
+		return;
+	}
 
-	try{
+	// Parse the string array into actual array
+	let userIds: string[];
+	try {
+		userIds = JSON.parse(idsParam);
+		if (!Array.isArray(userIds) || !userIds.every(id => typeof id === 'string')) {
+			throw new Error('Invalid ids format');
+		}
+	} catch (error) {
+		res.status(400).json({ message: "Invalid ids format. Expected JSON array of strings" });
+		return;
+	}
+
+	try {
 		const metadata = await prisma.user.findMany({
 			where: {
 				id: {
@@ -47,21 +64,27 @@ userRouter.get("/metadata/bulk", userMiddleware, async(req: Request, res: Respon
 			},
 			select: {
 				id: true,
-				avatar: true
+				avatar: {
+					select: {
+						imageUrl: true
+					}
+				}
 			}
-		})
+		});
 
-		res.status(200).json({avatars: metadata.map(user => ({
-			userId: user.id,
-			imageUrl: user.avatar?.imageUrl
-		}))});
+		res.status(200).json({
+			avatars: metadata.map(user => ({
+				userId: user.id,
+				imageUrl: user.avatar?.imageUrl || null
+			}))
+		});
 		return;
 	}
 	catch(error){
-		res.status(500).json({message: "Internal server error"});
+		console.error('Error fetching user metadata:', error);
+		res.status(500).json({ message: "Internal server error" });
 		return;
 	}
-	
 })
 
 
