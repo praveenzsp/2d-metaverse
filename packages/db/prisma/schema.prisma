@@ -65,6 +65,7 @@ model Map {
   width  Int
   height Int
   name   String
+  thumbnail String
   mapElements MapElements[] // All elements placed in this map with their positions
 }
 
