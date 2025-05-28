@@ -180,8 +180,16 @@ spaceRouter.post("/element", userAuthMiddleware, async (req:Request, res:Respons
 		where: {id: spaceId},
 		select: {
 			creatorId: true,
+			width: true,
+			height: true,
 		}
 	})
+
+	//condition to check if the element is within the space dimensions
+	if(x<0 || x>space?.width! || y<0 || y>space?.height!){
+		res.status(400).json({message: "Element is out of space dimensions"});
+		return;
+	}
 
 	if(!space){
 		res.status(404).json({message: "Space not found"});
