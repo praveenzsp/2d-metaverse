@@ -64,7 +64,7 @@ spaceRouter.post("/", userAuthMiddleware, async (req:Request, res:Response)=>{
 			}
 
 			// Use a transaction to ensure all operations succeed or fail together
-			const result = await prisma.$transaction(async (tx) => {
+			const result = await prisma.$transaction(async (tx:any) => {
 				// Create the new space
 				const space = await tx.space.create({
 					data: {
@@ -78,7 +78,7 @@ spaceRouter.post("/", userAuthMiddleware, async (req:Request, res:Response)=>{
 				// Copy all map elements to the space
 				if (map.mapElements.length > 0) {
 					await tx.spaceElements.createMany({
-						data: map.mapElements.map(mapElement => ({
+						data: map.mapElements.map((mapElement:any) => ({
 							spaceId: space.id,
 							elementId: mapElement.elementId,
 							x: mapElement.x ?? 0, // Default to 0 if x is null
@@ -151,7 +151,7 @@ spaceRouter.get("/all", userAuthMiddleware, async (req: Request, res: Response)=
 			}
 		})
 
-		res.status(200).json({spaces: spaces.map(space=>({
+		res.status(200).json({spaces: spaces.map((space:any)=>({
 			id: space.id,
 			name: space.name,
 			dimensions: `${space.width}x${space.height}`,
@@ -293,7 +293,7 @@ spaceRouter.get("/:spaceId", userAuthMiddleware, async (req:Request, res:Respons
 
 		const response = {
 			dimensions: `${space.width}x${space.height}`,
-			elements: spaceElements.map(spaceElement => ({
+			elements: spaceElements.map((spaceElement:any) => ({
 				id: spaceElement.id,
 				element: {
 					id: spaceElement.element.id,
