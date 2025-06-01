@@ -11,9 +11,11 @@
   "description": "",
   "dependencies": {
     "@repo/db": "workspace:*",
+    "@types/cors": "^2.8.18",
     "@types/express": "^5.0.2",
     "@types/jsonwebtoken": "^9.0.9",
     "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "zod": "^3.25.28"
