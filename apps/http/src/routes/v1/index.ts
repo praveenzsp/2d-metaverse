@@ -62,12 +62,83 @@ router.post('/signin', async (req, res) => {
 
         const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET);
 
-        res.status(200).json({ token });
+        // Set HTTP-only cookie with the JWT token
+        res.cookie('auth_token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // Only send cookie over HTTPS in production
+            sameSite: 'strict', // Protect against CSRF
+            maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            path: '/', // Cookie is available for all paths
+        });
+
+        // Send user info without sensitive data
+        res.status(200).json({ 
+            userId: user.id,
+            role: user.role,
+            message: 'Successfully signed in'
+        });
         return;
     } catch (error) {
         res.status(400).json({ error: 'User not found' });
         return;
     }
+});
+
+router.get('/auth/me', async (req, res) => {
+    try {
+        // Get the auth token from cookies
+        const token = req.cookies.auth_token;
+
+        if (!token) {
+            res.status(401).json({ error: 'No authentication token found' });
+            return;
+        }
+
+        // Verify and decode the token
+        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string, role: string };
+
+        // Get user info from database
+        const user = await client.user.findUnique({
+            where: { id: decoded.userId },
+            select: {
+                id: true,
+                username: true,
+                role: true,
+                // Add other non-sensitive fields you want to return
+            }
+        });
+
+        if (!user) {
+            res.status(401).json({ error: 'User not found' });
+            return;
+        }
+
+        res.status(200).json({
+            userId: user.id,
+            username: user.username,
+            role: user.role
+        });
+        return;
+    } catch (error) {
+        if (error instanceof jwt.JsonWebTokenError) {
+            res.status(401).json({ error: 'Invalid token' });
+            return;
+        }
+        res.status(500).json({ error: 'Internal server error' });
+        return;
+    }
+});
+
+
+// Add a signout endpoint to clear the cookie
+router.post('/signout', (req, res) => {
+    res.clearCookie('auth_token', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+    });
+    res.status(200).json({ message: 'Successfully signed out' });
 });
 
 router.get('/elements', async (req: Request, res: Response) => {
