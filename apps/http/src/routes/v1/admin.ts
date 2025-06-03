@@ -107,5 +107,41 @@ adminRouter.post("/map", adminMiddleware, async (req:Request, res:Response)=>{
 	
 })
 
+adminRouter.get("/users", adminMiddleware, async (req: Request, res: Response) => {
+    try {
+        const users = await prisma.user.findMany({
+            select: {
+                id: true,
+                username: true,
+                role: true,
+                avatarId: true,
+                avatar: {
+                    select: {
+                        imageUrl: true,
+                        name: true
+                    }
+                }
+            }
+        });
+
+        res.status(200).json({
+            users: users.map(user => ({
+                id: user.id,
+                username: user.username,
+                role: user.role,
+                avatar: user.avatar ? {
+                    id: user.avatarId,
+                    imageUrl: user.avatar.imageUrl,
+                    name: user.avatar.name
+                } : null
+            }))
+        });
+        return;
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).json({ error: "Failed to fetch users" });
+        return;
+    }
+});
 
 export default adminRouter;
