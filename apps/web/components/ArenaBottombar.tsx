@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, MicOff, Video, VideoOff, MessageCircle, Users, Monitor, LogOut } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, MessageCircle, Users, Monitor, LogOut, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ArenaBottombarProps {
@@ -12,6 +12,7 @@ interface ArenaBottombarProps {
     onLeave: () => void;
     onParticipants: () => void;
     onShareScreen: () => void;
+    onEditMap: () => void;
 }
 
 const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
@@ -24,9 +25,10 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
     onLeave,
     onParticipants,
     onShareScreen,
+    onEditMap,
 }) => {
     return (
-        <div className="fixed bottom-0 left-0 w-full bg-gray-900 text-white flex items-center justify-between px-40 py-3 z-50 shadow-lg">
+        <div className="absolute bottom-0 left-0 w-full bg-gray-900 text-white flex items-center justify-between px-40 py-3 z-50 shadow-lg">
             {/* Left section */}
             <div className="flex items-center space-x-4">
                 <span className="font-semibold text-lg">{userName}</span>
@@ -61,6 +63,15 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
 
             {/* Right section */}
             <div className="flex items-center space-x-4">
+                <Button
+                    onClick={onEditMap}
+                    className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+                    aria-label="Edit Map"
+                    variant="outline"
+                    size="icon"
+                >
+                    <Edit className="w-5 h-5" />
+                </Button>
                 <Button
                     onClick={onChat}
                     className="p-2 rounded-full hover:bg-gray-800 transition-colors"
