@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { X, Save } from 'lucide-react';
+import { X, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 
@@ -20,6 +20,7 @@ interface MapEditSidebarProps {
     onClose: () => void;
     onSave: () => void;
     onElementDragStart?: (element: MapElement) => void;
+    onDeleteSelected?: () => void;
 }
 
 // Dummy data for map elements
@@ -108,6 +109,7 @@ const MapEditSidebar: React.FC<MapEditSidebarProps> = ({
     onClose,
     onSave,
     onElementDragStart,
+    onDeleteSelected,
 }) => {
 	const [searchQuery, setSearchQuery] = useState('');
     if (!isOpen) return null;
@@ -176,7 +178,14 @@ const MapEditSidebar: React.FC<MapEditSidebarProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-800">
+            <div className="p-4 border-t border-gray-800 space-y-2">
+                <Button 
+                    onClick={onDeleteSelected}
+                    className="w-full bg-red-600 hover:bg-red-700"
+                >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Selected
+                </Button>
                 <Button 
                     onClick={onSave}
                     className="w-full bg-blue-600 hover:bg-blue-700"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import ArenaBottombar from '@/components/ArenaBottombar';
 import MapEditSidebar from '@/components/MapEditSidebar';
@@ -33,6 +33,7 @@ export default function MapArenaPage() {
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
+    const gameRef = useRef<{ handleDeleteSelected?: () => void }>(null);
 
     useEffect(() => {
         // TODO: Fetch map details from API
@@ -89,7 +90,7 @@ export default function MapArenaPage() {
                 {/* Map Arena */}
                 <div className="flex-1 overflow-auto">
                     <div className="h-full w-full rounded-lg overflow-hidden border bg-muted/50 flex items-center justify-center mx-1">
-                        <GameArena />
+                        <GameArena ref={gameRef} />
                     </div>
                 </div>
 
@@ -144,6 +145,7 @@ export default function MapArenaPage() {
                 onClose={() => setIsEditMode(false)}
                 onSave={handleSaveMap}
                 onElementDragStart={handleElementDragStart}
+                onDeleteSelected={() => gameRef.current?.handleDeleteSelected?.()}
             />
         </div>
     );

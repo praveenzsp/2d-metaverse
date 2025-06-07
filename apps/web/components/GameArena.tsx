@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Phaser from 'phaser';
 
 interface GridObject {
@@ -120,17 +120,11 @@ class MainScene extends Phaser.Scene {
 
         // Set up camera to follow player
         this.cameras.main.setBounds(0, 0, this.GRID_SIZE, this.GRID_SIZE);
-        this.cameras.main.startFollow(this.player);
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
         this.cameras.main.setZoom(1);
         
-        // Center the camera on the grid
-        const centerX = this.GRID_SIZE / 2;
-        const centerY = this.GRID_SIZE / 2;
-        this.cameras.main.centerOn(centerX, centerY);
-        
-        // Set the initial camera position to center
-        this.cameras.main.scrollX = centerX - (this.cameras.main.width / 2);
-        this.cameras.main.scrollY = centerY - (this.cameras.main.height / 2);
+        // Center the camera on the player initially
+        this.cameras.main.centerOn(this.player.x, this.player.y);
 
         // Set up input
         this.cursors = this.input.keyboard!.createCursorKeys();
@@ -343,6 +337,9 @@ class MainScene extends Phaser.Scene {
         this.player.x = newX;
         this.player.y = newY;
 
+        // Update camera position to follow player
+        this.cameras.main.centerOn(newX, newY);
+
         // Re-enable movement after a short delay
         this.time.delayedCall(100, () => {
             this.canMove = true;
@@ -530,11 +527,40 @@ class MainScene extends Phaser.Scene {
         // Add back to grid objects
         this.gridObjects.push(object);
     }
+
+    private deleteSelectedObject() {
+        if (this.selectedObject) {
+            // Remove from grid objects array
+            const index = this.gridObjects.indexOf(this.selectedObject);
+            if (index > -1) {
+                this.gridObjects.splice(index, 1);
+            }
+
+            // Destroy the sprite
+            this.selectedObject.sprite.destroy();
+
+            // Clear selection
+            this.selectedObject = null;
+        }
+    }
+
+    // Add method to expose delete functionality
+    deleteSelected() {
+        this.deleteSelectedObject();
+    }
 }
 
-function GameArena() {
+const GameArena = forwardRef<{ handleDeleteSelected?: () => void }>((props, ref) => {
     const gameRef = useRef<Phaser.Game | null>(null);
     const sceneRef = useRef<MainScene | null>(null);
+
+    useImperativeHandle(ref, () => ({
+        handleDeleteSelected: () => {
+            if (sceneRef.current) {
+                sceneRef.current.deleteSelected();
+            }
+        }
+    }));
 
     useEffect(() => {
         if (gameRef.current) return;
@@ -604,6 +630,8 @@ function GameArena() {
             onDrop={handleDrop}
         />
     );
-}
+});
+
+GameArena.displayName = 'GameArena';
 
 export default GameArena;
