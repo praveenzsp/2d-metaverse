@@ -164,6 +164,18 @@ router.get('/avatars', async (req: Request, res: Response) => {
 	}
 });
 
+router.get('/maps', async (req: Request, res: Response) => {
+    try{
+        const maps = await client.map.findMany();
+        res.status(200).json({maps: maps});
+        return;
+    }
+    catch(error){
+        res.status(400).json({error: 'Error fetching maps'});
+        return;
+    }
+});
+
 router.use('/user', userRouter);
 router.use('/space', spaceRouter);
 router.use('/admin', adminRouter);

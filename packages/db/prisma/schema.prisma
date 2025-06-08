@@ -50,6 +50,7 @@ model spaceElements {
 // The same element can be placed in multiple spaces and maps at different positions
 model Element {
   id       String @id @unique @default(cuid())
+  name     String
   width    Int
   height   Int
   static   Boolean

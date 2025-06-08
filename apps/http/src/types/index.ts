@@ -39,10 +39,12 @@ export const CreateElementSchema = z.object({
 	width: z.number(),
 	height: z.number(),
 	isStatic: z.boolean(),
+	name: z.string(),
 });
 
 export const UpdateElementSchema = z.object({
 	imageUrl: z.string(),
+	name: z.string().optional(),
 });
 
 export const CreateAvatarSchema = z.object({
