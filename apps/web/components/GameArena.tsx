@@ -1,58 +1,75 @@
 import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Phaser from 'phaser';
 
+// Define the structure for objects that can be placed on the grid
 interface GridObject {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    type: string;
-    sprite: Phaser.GameObjects.GameObject;
+    x: number;          // X position in grid coordinates
+    y: number;          // Y position in grid coordinates
+    width: number;      // Width of the object in grid cells
+    height: number;     // Height of the object in grid cells
+    type: string;       // Type of the object (e.g., 'tree', 'rock', etc.)
+    sprite: Phaser.GameObjects.GameObject;  // The visual representation of the object
 }
 
+// Define the structure for elements that can be dragged from the sidebar
 interface MapElement {
-    id: string;
-    name: string;
-    imageUrl: string;
-    type: string;
+    id: string;         // Unique identifier for the element
+    name: string;       // Display name of the element
+    imageUrl: string;   // URL of the element's image
+    type: string;       // Type of the element
     size: {
-        width: number;
-        height: number;
+        width: number;  // Width in grid cells
+        height: number; // Height in grid cells
     };
 }
 
+// Main game scene class that handles all game logic and rendering
 class MainScene extends Phaser.Scene {
+    // Player object that can be moved around the grid
     private player!: Phaser.GameObjects.Rectangle;
+    
+    // Keyboard input handler for player movement
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-    private readonly CELL_SIZE = 50;
-    private readonly GRID_SIZE = 4000;
-    private readonly PLAYER_SIZE = 50;
-    private canMove = true;
-    private gridObjects: GridObject[] = [];
-    private readonly MIN_ZOOM = 0.5;
-    private readonly MAX_ZOOM = 1.3;
-    private readonly ZOOM_STEP = 0.01;
-    private readonly MOVE_DELAY = 150; // Delay between moves in milliseconds
-    private lastMoveTime = 0;
-    private backgroundTiles!: Phaser.GameObjects.TileSprite;
-    private selectedObject: GridObject | null = null;
-    private isDragging = false;
-    private dragStartX = 0;
-    private dragStartY = 0;
+    
+    // Constants for grid and game settings
+    private readonly CELL_SIZE = 50;        // Size of each grid cell in pixels
+    private readonly GRID_SIZE = 4000;      // Total size of the grid in pixels
+    private readonly PLAYER_SIZE = 50;      // Size of the player in pixels
+    private canMove = true;                 // Flag to control player movement
+    private gridObjects: GridObject[] = []; // Array to store all objects on the grid
+    
+    // Camera zoom settings
+    private readonly MIN_ZOOM = 0.5;        // Minimum zoom level
+    private readonly MAX_ZOOM = 1.3;        // Maximum zoom level
+    private readonly ZOOM_STEP = 0.01;      // How much to zoom in/out per step
+    
+    // Movement and interaction settings
+    private readonly MOVE_DELAY = 150;      // Delay between moves in milliseconds
+    private lastMoveTime = 0;               // Timestamp of last move
+    private backgroundTiles!: Phaser.GameObjects.TileSprite;  // Background grid tiles
+    private selectedObject: GridObject | null = null;  // Currently selected object
+    private isDragging = false;             // Flag for drag operation
+    private dragStartX = 0;                 // Starting X position of drag
+    private dragStartY = 0;                 // Starting Y position of drag
 
+    // Constructor for the scene
     constructor() {
-        super({ key: 'MainScene' });
+        super({ key: 'MainScene' });  // 'MainScene' is the unique identifier for this scene
     }
 
+    // Load all game assets (images, sprites, etc.)
     preload() {
-        // Load the background tile image
+        // Load the background tile image that will be used for the grid
         this.load.image('gridTile', '/tile.png');
-        // Load element images
+        // Load the work desk image that can be placed on the grid
         this.load.image('work_desk', '/elements/work_desk.png');
     }
 
+    // Find a safe position to spawn the player where there are no obstacles
     private findSafeSpawnPosition(): { x: number, y: number } {
+        // Calculate the number of cells in the grid
         const numCells = this.GRID_SIZE / this.CELL_SIZE;
+        // Find the center cell
         const centerCell = Math.floor(numCells / 2);
         
         // Start from center and spiral outward until we find a safe spot
@@ -73,6 +90,7 @@ class MainScene extends Phaser.Scene {
                     );
                     
                     if (isSafe) {
+                        // Convert grid coordinates to pixel coordinates
                         return {
                             x: x * this.CELL_SIZE + (this.CELL_SIZE / 2),
                             y: y * this.CELL_SIZE + (this.CELL_SIZE / 2)
@@ -82,54 +100,55 @@ class MainScene extends Phaser.Scene {
             }
         }
         
-        // Fallback to center if no safe spot found (shouldn't happen)
+        // Fallback to center if no safe spot found
         return {
             x: centerCell * this.CELL_SIZE + (this.CELL_SIZE / 2),
             y: centerCell * this.CELL_SIZE + (this.CELL_SIZE / 2)
         };
     }
 
+    // Initialize the game scene
     create() {
-        // Create individual tiles for each cell
+        // Create individual tiles for each cell in the grid
         const numCells = this.GRID_SIZE / this.CELL_SIZE;
         for (let x = 0; x < numCells; x++) {
             for (let y = 0; y < numCells; y++) {
                 const tileX = x * this.CELL_SIZE;
                 const tileY = y * this.CELL_SIZE;
                 this.add.image(tileX, tileY, 'gridTile')
-                    .setOrigin(0, 0)
-                    .setDisplaySize(this.CELL_SIZE, this.CELL_SIZE);
+                    .setOrigin(0, 0)  // Set the origin point to top-left corner
+                    .setDisplaySize(this.CELL_SIZE, this.CELL_SIZE);  // Set the size of each tile
             }
         }
 
-        // Create grid lines on top of the background
+        // Create the grid lines
         this.createGrid();
 
-        // Find a safe spawn position
+        // Find a safe position to spawn the player
         const safePosition = this.findSafeSpawnPosition();
 
-        // Create player at safe position
+        // Create the player as a green rectangle
         this.player = this.add.rectangle(
             safePosition.x,
             safePosition.y,
             this.PLAYER_SIZE * 0.8,
             this.PLAYER_SIZE * 0.8,
-            0x00ff00
+            0x00ff00  // Green color
         );
-        this.player.setStrokeStyle(2, 0xffffff);
+        this.player.setStrokeStyle(2, 0xffffff);  // Add white border
 
-        // Set up camera to follow player
-        this.cameras.main.setBounds(0, 0, this.GRID_SIZE, this.GRID_SIZE);
-        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-        this.cameras.main.setZoom(1);
+        // Set up the camera to follow the player
+        this.cameras.main.setBounds(0, 0, this.GRID_SIZE, this.GRID_SIZE);  // Set camera boundaries
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);  // Make camera follow player smoothly
+        this.cameras.main.setZoom(1);  // Set initial zoom level
         
-        // Center the camera on the player initially
+        // Center the camera on the player
         this.cameras.main.centerOn(this.player.x, this.player.y);
 
-        // Set up input
+        // Set up keyboard input for player movement
         this.cursors = this.input.keyboard!.createCursorKeys();
 
-        // Add mouse wheel zoom
+        // Add mouse wheel zoom functionality
         this.input.on('wheel', (pointer: Phaser.Input.Pointer, gameObjects: Phaser.GameObjects.GameObject[], deltaX: number, deltaY: number) => {
             const currentZoom = this.cameras.main.zoom;
             const zoomDelta = deltaY > 0 ? -this.ZOOM_STEP : this.ZOOM_STEP;
@@ -139,7 +158,7 @@ class MainScene extends Phaser.Scene {
             const mouseWorldX = this.cameras.main.scrollX + pointer.x / currentZoom;
             const mouseWorldY = this.cameras.main.scrollY + pointer.y / currentZoom;
             
-            // Set new zoom
+            // Set new zoom level
             this.cameras.main.setZoom(newZoom);
             
             // Adjust camera position to zoom towards mouse
@@ -150,13 +169,13 @@ class MainScene extends Phaser.Scene {
             this.cameras.main.scrollY += (mouseWorldY - newMouseWorldY);
         });
 
-        // Add input handlers for element interaction
+        // Set up input handlers for element interaction
         this.input.on('pointerdown', this.handlePointerDown, this);
         this.input.on('pointermove', this.handlePointerMove, this);
         this.input.on('pointerup', this.handlePointerUp, this);
         this.input.on('pointerout', this.handlePointerUp, this);
 
-        // Make all sprites interactive
+        // Make all existing sprites interactive
         this.gridObjects.forEach(obj => {
             if (obj.sprite instanceof Phaser.GameObjects.Image || 
                 obj.sprite instanceof Phaser.GameObjects.Rectangle) {
@@ -167,6 +186,7 @@ class MainScene extends Phaser.Scene {
         console.log('Scene created successfully');
     }
 
+    // Add a new object to the grid at specified coordinates
     private addObjectToGrid(gridX: number, gridY: number, type: string, color: number, width: number = 1, height: number = 1) {
         try {
             // Convert grid coordinates to pixel coordinates
@@ -175,61 +195,64 @@ class MainScene extends Phaser.Scene {
 
             let sprite: Phaser.GameObjects.GameObject;
 
+            // Create different types of objects based on the type parameter
             switch (type) {
                 case 'work_desk':
+                    // Create a work desk using an image
                     sprite = this.add.image(x, y, 'work_desk')
                         .setDisplaySize(width * this.CELL_SIZE, height * this.CELL_SIZE)
-                        .setOrigin(0.5)
-                        .setInteractive({ draggable: true });
+                        .setOrigin(0.5)  // Center the image
+                        .setInteractive({ draggable: true });  // Make it draggable
                     break;
                 case 'tree':
-                    // Create a tree-like shape
+                    // Create a tree using graphics
                     const treeGraphics = this.add.graphics();
-                    treeGraphics.fillStyle(0x228B22, 1); // Dark green
-                    treeGraphics.fillCircle(x, y - 10, 15); // Tree top
-                    treeGraphics.fillStyle(0x8B4513, 1); // Brown
-                    treeGraphics.fillRect(x - 5, y, 10, 20); // Tree trunk
+                    treeGraphics.fillStyle(0x228B22, 1);  // Dark green color
+                    treeGraphics.fillCircle(x, y - 10, 15);  // Tree top
+                    treeGraphics.fillStyle(0x8B4513, 1);  // Brown color
+                    treeGraphics.fillRect(x - 5, y, 10, 20);  // Tree trunk
                     sprite = treeGraphics;
                     break;
                 case 'rock':
-                    // Create a rock-like shape
+                    // Create a rock using graphics
                     const rockGraphics = this.add.graphics();
-                    rockGraphics.fillStyle(0x808080, 1); // Gray
-                    rockGraphics.fillCircle(x, y, 20 * Math.max(width, height)); // Scaled rock body
-                    rockGraphics.fillStyle(0x696969, 1); // Darker gray
-                    rockGraphics.fillCircle(x - 5, y - 5, 5 * Math.max(width, height)); // Scaled rock detail
+                    rockGraphics.fillStyle(0x808080, 1);  // Gray color
+                    rockGraphics.fillCircle(x, y, 20 * Math.max(width, height));  // Rock body
+                    rockGraphics.fillStyle(0x696969, 1);  // Darker gray
+                    rockGraphics.fillCircle(x - 5, y - 5, 5 * Math.max(width, height));  // Rock detail
                     sprite = rockGraphics;
                     break;
                 case 'chest':
-                    // Create a treasure chest
+                    // Create a treasure chest using graphics
                     const chestGraphics = this.add.graphics();
-                    chestGraphics.fillStyle(0x8B4513, 1); // Brown
-                    chestGraphics.fillRect(x - 15, y - 10, 30, 20); // Chest body
-                    chestGraphics.fillStyle(0xFFD700, 1); // Gold
-                    chestGraphics.fillRect(x - 12, y - 8, 24, 4); // Chest lid
-                    chestGraphics.fillRect(x - 8, y - 4, 16, 12); // Chest front
+                    chestGraphics.fillStyle(0x8B4513, 1);  // Brown color
+                    chestGraphics.fillRect(x - 15, y - 10, 30, 20);  // Chest body
+                    chestGraphics.fillStyle(0xFFD700, 1);  // Gold color
+                    chestGraphics.fillRect(x - 12, y - 8, 24, 4);  // Chest lid
+                    chestGraphics.fillRect(x - 8, y - 4, 16, 12);  // Chest front
                     sprite = chestGraphics;
                     break;
                 case 'house':
-                    // Create a house
+                    // Create a house using graphics
                     const houseGraphics = this.add.graphics();
                     // House body
-                    houseGraphics.fillStyle(0x8B4513, 1); // Brown
+                    houseGraphics.fillStyle(0x8B4513, 1);  // Brown color
                     houseGraphics.fillRect(x - (width * this.CELL_SIZE) / 2, y - (height * this.CELL_SIZE) / 2, 
                         width * this.CELL_SIZE, height * this.CELL_SIZE);
                     // Roof
-                    houseGraphics.fillStyle(0x800000, 1); // Dark red
+                    houseGraphics.fillStyle(0x800000, 1);  // Dark red color
                     houseGraphics.fillTriangle(
                         x - (width * this.CELL_SIZE) / 2, y - (height * this.CELL_SIZE) / 2,
                         x + (width * this.CELL_SIZE) / 2, y - (height * this.CELL_SIZE) / 2,
                         x, y - (height * this.CELL_SIZE) / 2 - 20
                     );
                     // Door
-                    houseGraphics.fillStyle(0x4B2F0F, 1); // Dark brown
+                    houseGraphics.fillStyle(0x4B2F0F, 1);  // Dark brown color
                     houseGraphics.fillRect(x - 10, y, 20, 30);
                     sprite = houseGraphics;
                     break;
                 default:
+                    // Create a default rectangle for unknown types
                     sprite = this.add.rectangle(
                         x,
                         y,
@@ -239,7 +262,7 @@ class MainScene extends Phaser.Scene {
                     ).setInteractive({ draggable: true });
             }
 
-            // Store the object
+            // Create a grid object to store the object's data
             const gridObject = {
                 x: gridX,
                 y: gridY,
@@ -249,36 +272,52 @@ class MainScene extends Phaser.Scene {
                 sprite
             };
 
+            // Add the object to the grid objects array
             this.gridObjects.push(gridObject);
 
-            // Add click handler to the sprite
+            // Add interaction handlers for the sprite
             if (sprite instanceof Phaser.GameObjects.Image || 
                 sprite instanceof Phaser.GameObjects.Rectangle) {
+                // Handle click events
                 sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
                     if (pointer.rightButtonDown()) {
+                        // Right click to deselect
                         this.deselectObject();
                     } else {
+                        // Left click to select and start drag
                         this.selectObject(gridObject);
                         this.isDragging = true;
-                        this.dragStartX = this.cameras.main.scrollX + (pointer.x / this.cameras.main.zoom);
-                        this.dragStartY = this.cameras.main.scrollY + (pointer.y / this.cameras.main.zoom);
+                        this.dragStartX = pointer.worldX;
+                        this.dragStartY = pointer.worldY;
                     }
                 });
 
-                // Add drag handlers
+                // Handle drag events
                 sprite.on('drag', (pointer: Phaser.Input.Pointer) => {
                     if (this.isDragging && this.selectedObject) {
-                        const worldX = this.cameras.main.scrollX + (pointer.x / this.cameras.main.zoom);
-                        const worldY = this.cameras.main.scrollY + (pointer.y / this.cameras.main.zoom);
+                        const gridX = Math.floor(pointer.worldX / this.CELL_SIZE);
+                        const gridY = Math.floor(pointer.worldY / this.CELL_SIZE);
                         
-                        const gridX = Math.floor(worldX / this.CELL_SIZE);
-                        const gridY = Math.floor(worldY / this.CELL_SIZE);
+                        // Update sprite position immediately for smooth movement
+                        const newX = gridX * this.CELL_SIZE + (this.selectedObject.width * this.CELL_SIZE) / 2;
+                        const newY = gridY * this.CELL_SIZE + (this.selectedObject.height * this.CELL_SIZE) / 2;
                         
+                        if (this.selectedObject.sprite instanceof Phaser.GameObjects.Image || 
+                            this.selectedObject.sprite instanceof Phaser.GameObjects.Rectangle) {
+                            this.selectedObject.sprite.setPosition(newX, newY);
+                        }
+                        
+                        // Check if new position is valid and different
                         if (!this.isPositionOccupied(gridX, gridY, this.selectedObject) && 
                             (gridX !== this.selectedObject.x || gridY !== this.selectedObject.y)) {
                             this.moveObjectToGrid(this.selectedObject, gridX, gridY);
                         }
                     }
+                });
+
+                // Handle drag end events
+                sprite.on('dragend', () => {
+                    this.isDragging = false;
                 });
             }
 
@@ -287,7 +326,7 @@ class MainScene extends Phaser.Scene {
         }
     }
 
-    // Helper method to get object at grid coordinates
+    // Helper method to find an object at specific grid coordinates
     getObjectAt(gridX: number, gridY: number): GridObject | undefined {
         return this.gridObjects.find(obj => 
             gridX >= obj.x && 
@@ -308,6 +347,7 @@ class MainScene extends Phaser.Scene {
         });
     }
 
+    // Move the player in the specified direction
     private movePlayer(dx: number, dy: number) {
         this.canMove = false;
         
@@ -321,7 +361,7 @@ class MainScene extends Phaser.Scene {
             return;
         }
 
-        // Calculate new pixel position
+        // Calculate new pixel position with bounds checking
         const newX = Phaser.Math.Clamp(
             this.player.x + dx,
             this.PLAYER_SIZE / 2,
@@ -333,23 +373,24 @@ class MainScene extends Phaser.Scene {
             this.GRID_SIZE - this.PLAYER_SIZE / 2
         );
 
-        // Move player
+        // Move player to new position
         this.player.x = newX;
         this.player.y = newY;
 
-        // Update camera position to follow player
+        // Update camera to follow player
         this.cameras.main.centerOn(newX, newY);
 
-        // Re-enable movement after a short delay
+        // Re-enable movement after delay
         this.time.delayedCall(100, () => {
             this.canMove = true;
         });
     }
 
+    // Create the grid lines
     private createGrid() {
         const graphics = this.add.graphics();
         
-        // Draw minor grid lines
+        // Draw minor grid lines (thinner, more frequent)
         graphics.lineStyle(1, 0xffffff, 0.05);
         for (let x = 0; x <= this.GRID_SIZE; x += this.CELL_SIZE) {
             graphics.moveTo(x, 0);
@@ -360,7 +401,7 @@ class MainScene extends Phaser.Scene {
             graphics.lineTo(this.GRID_SIZE, y);
         }
 
-        // Draw major grid lines
+        // Draw major grid lines (thicker, less frequent)
         graphics.lineStyle(1, 0xffffff, 0.1);
         for (let x = 0; x <= this.GRID_SIZE; x += this.CELL_SIZE * 4) {
             graphics.moveTo(x, 0);
@@ -374,6 +415,7 @@ class MainScene extends Phaser.Scene {
         graphics.strokePath();
     }
 
+    // Main game update loop
     update(time: number) {
         if (!this.canMove) return;
 
@@ -382,6 +424,7 @@ class MainScene extends Phaser.Scene {
 
         let moved = false;
 
+        // Handle keyboard input for player movement
         if (this.cursors.left.isDown) {
             this.movePlayer(-this.CELL_SIZE, 0);
             moved = true;
@@ -408,7 +451,7 @@ class MainScene extends Phaser.Scene {
         }
     }
 
-    // Add method to handle dropped elements
+    // Handle dropped elements from the sidebar
     handleDroppedElement(element: MapElement, worldX: number, worldY: number) {
         // Convert world coordinates to grid coordinates
         const gridX = Math.floor(worldX / this.CELL_SIZE);
@@ -422,20 +465,17 @@ class MainScene extends Phaser.Scene {
             gridX,
             gridY,
             element.type,
-            0xffffff,
+            0xffffff,  // White color for default objects
             element.size.width,
             element.size.height
         );
     }
 
+    // Handle pointer down events
     private handlePointerDown(pointer: Phaser.Input.Pointer) {
-        // Convert pointer position to world coordinates
-        const worldX = this.cameras.main.scrollX + (pointer.x / this.cameras.main.zoom);
-        const worldY = this.cameras.main.scrollY + (pointer.y / this.cameras.main.zoom);
-        
-        // Convert to grid coordinates
-        const gridX = Math.floor(worldX / this.CELL_SIZE);
-        const gridY = Math.floor(worldY / this.CELL_SIZE);
+        // Convert to grid coordinates using world coordinates
+        const gridX = Math.floor(pointer.worldX / this.CELL_SIZE);
+        const gridY = Math.floor(pointer.worldY / this.CELL_SIZE);
         
         // Find clicked object
         const clickedObject = this.getObjectAt(gridX, gridY);
@@ -448,49 +488,57 @@ class MainScene extends Phaser.Scene {
                 // Left click to select and start drag
                 this.selectObject(clickedObject);
                 this.isDragging = true;
-                this.dragStartX = worldX;
-                this.dragStartY = worldY;
+                this.dragStartX = pointer.worldX;
+                this.dragStartY = pointer.worldY;
             }
         } else {
             this.deselectObject();
         }
     }
 
+    // Handle pointer move events
     private handlePointerMove(pointer: Phaser.Input.Pointer) {
         if (!this.isDragging || !this.selectedObject) return;
 
-        // Convert pointer position to world coordinates
-        const worldX = this.cameras.main.scrollX + (pointer.x / this.cameras.main.zoom);
-        const worldY = this.cameras.main.scrollY + (pointer.y / this.cameras.main.zoom);
+        // Calculate grid position using world coordinates
+        const gridX = Math.floor(pointer.worldX / this.CELL_SIZE);
+        const gridY = Math.floor(pointer.worldY / this.CELL_SIZE);
         
-        // Calculate grid position
-        const gridX = Math.floor(worldX / this.CELL_SIZE);
-        const gridY = Math.floor(worldY / this.CELL_SIZE);
+        // Update sprite position immediately for smooth movement
+        const newX = gridX * this.CELL_SIZE + (this.selectedObject.width * this.CELL_SIZE) / 2;
+        const newY = gridY * this.CELL_SIZE + (this.selectedObject.height * this.CELL_SIZE) / 2;
         
-        // Check if new position is valid and different from current position
+        if (this.selectedObject.sprite instanceof Phaser.GameObjects.Image || 
+            this.selectedObject.sprite instanceof Phaser.GameObjects.Rectangle) {
+            this.selectedObject.sprite.setPosition(newX, newY);
+        }
+        
+        // Check if new position is valid and different
         if (!this.isPositionOccupied(gridX, gridY, this.selectedObject) && 
             (gridX !== this.selectedObject.x || gridY !== this.selectedObject.y)) {
-            // Update object position
             this.moveObjectToGrid(this.selectedObject, gridX, gridY);
         }
     }
 
+    // Handle pointer up events
     private handlePointerUp() {
         this.isDragging = false;
     }
 
+    // Select an object
     private selectObject(object: GridObject) {
         this.deselectObject();
         this.selectedObject = object;
         
         // Add visual feedback for selected object
         if (object.sprite instanceof Phaser.GameObjects.Image) {
-            object.sprite.setTint(0xffff00);
+            object.sprite.setTint(0xffff00);  // Yellow tint
         } else if (object.sprite instanceof Phaser.GameObjects.Rectangle) {
-            object.sprite.setStrokeStyle(2, 0xffff00);
+            object.sprite.setStrokeStyle(2, 0xffff00);  // Yellow border
         }
     }
 
+    // Deselect the currently selected object
     private deselectObject() {
         if (this.selectedObject) {
             // Remove visual feedback
@@ -503,6 +551,7 @@ class MainScene extends Phaser.Scene {
         }
     }
 
+    // Move an object to a new grid position
     private moveObjectToGrid(object: GridObject, newGridX: number, newGridY: number) {
         // Remove from old position
         const index = this.gridObjects.indexOf(object);
@@ -528,6 +577,7 @@ class MainScene extends Phaser.Scene {
         this.gridObjects.push(object);
     }
 
+    // Delete the currently selected object
     private deleteSelectedObject() {
         if (this.selectedObject) {
             // Remove from grid objects array
@@ -544,16 +594,20 @@ class MainScene extends Phaser.Scene {
         }
     }
 
-    // Add method to expose delete functionality
+    // Public method to delete selected object
     deleteSelected() {
         this.deleteSelectedObject();
     }
 }
 
+// React component that wraps the Phaser game
 const GameArena = forwardRef<{ handleDeleteSelected?: () => void }>((props, ref) => {
+    // Reference to the Phaser game instance
     const gameRef = useRef<Phaser.Game | null>(null);
+    // Reference to the main scene
     const sceneRef = useRef<MainScene | null>(null);
 
+    // Expose methods to parent components
     useImperativeHandle(ref, () => ({
         handleDeleteSelected: () => {
             if (sceneRef.current) {
@@ -562,22 +616,25 @@ const GameArena = forwardRef<{ handleDeleteSelected?: () => void }>((props, ref)
         }
     }));
 
+    // Initialize the game when component mounts
     useEffect(() => {
         if (gameRef.current) return;
 
+        // Game configuration
         const config: Phaser.Types.Core.GameConfig = {
-            type: Phaser.AUTO,
-            parent: 'game-container',
-            width: '100%',
-            height: '100%',
-            scene: MainScene,
-            backgroundColor: '#000000',
+            type: Phaser.AUTO,  // Automatically choose WebGL or Canvas
+            parent: 'game-container',  // DOM element to mount the game
+            width: '100%',  // Use full width of container
+            height: '100%',  // Use full height of container
+            scene: MainScene,  // Use our MainScene class
+            backgroundColor: '#000000',  // Black background
             scale: {
-                mode: Phaser.Scale.RESIZE,
-                autoCenter: Phaser.Scale.CENTER_BOTH
+                mode: Phaser.Scale.RESIZE,  // Resize game to fit container
+                autoCenter: Phaser.Scale.CENTER_BOTH  // Center the game
             }
         };
 
+        // Create the game instance
         gameRef.current = new Phaser.Game(config);
         
         // Get scene reference after a short delay to ensure it's initialized
@@ -585,6 +642,7 @@ const GameArena = forwardRef<{ handleDeleteSelected?: () => void }>((props, ref)
             sceneRef.current = gameRef.current?.scene.getScene('MainScene') as MainScene;
         }, 1000);
 
+        // Cleanup when component unmounts
         return () => {
             if (gameRef.current) {
                 gameRef.current.destroy(true);
@@ -594,10 +652,12 @@ const GameArena = forwardRef<{ handleDeleteSelected?: () => void }>((props, ref)
         };
     }, []);
 
+    // Handle drag over events
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
     };
 
+    // Handle drop events from the sidebar
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         const element = JSON.parse(e.dataTransfer.getData('application/json')) as MapElement;
@@ -606,22 +666,26 @@ const GameArena = forwardRef<{ handleDeleteSelected?: () => void }>((props, ref)
         const scene = gameRef.current?.scene.getScene('MainScene') as MainScene;
         if (!scene) return;
 
-        const rect = e.currentTarget.getBoundingClientRect();
+        // Get the game container's position and size
+        const gameContainer = document.getElementById('game-container');
+        if (!gameContainer) return;
+        
+        const rect = gameContainer.getBoundingClientRect();
+        
+        // Calculate position relative to the game container
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         
+        // Get the camera's viewport
+        const camera = scene.cameras.main;
+        
         // Convert screen coordinates to world coordinates
-        // First convert to world space considering zoom
-        const worldX = x / scene.cameras.main.zoom;
-        const worldY = y / scene.cameras.main.zoom;
+        const worldPoint = camera.getWorldPoint(x, y);
         
-        // Then add camera scroll to get final world position
-        const finalWorldX = worldX + scene.cameras.main.scrollX;
-        const finalWorldY = worldY + scene.cameras.main.scrollY;
-        
-        scene.handleDroppedElement(element, finalWorldX, finalWorldY);
+        scene.handleDroppedElement(element, worldPoint.x, worldPoint.y);
     };
 
+    // Render the game container
     return (
         <div 
             id="game-container" 
@@ -632,6 +696,7 @@ const GameArena = forwardRef<{ handleDeleteSelected?: () => void }>((props, ref)
     );
 });
 
+// Set display name for the component
 GameArena.displayName = 'GameArena';
 
 export default GameArena;

@@ -96,18 +96,18 @@ export default function MapArenaPage() {
 
                 {/* Bottom Bar */}
                 <div className="flex-shrink-0">
-                    <ArenaBottombar
-                        userName="John Doe"
-                        audioOn={true}
-                        videoOn={true}
-                        onToggleAudio={() => {}}
-                        onToggleVideo={() => {}}
+            <ArenaBottombar
+                userName="John Doe"
+                audioOn={true}
+                videoOn={true}
+                onToggleAudio={() => {}}
+                onToggleVideo={() => {}}
                         onChat={handleChat}
-                        onLeave={() => {}}
+                onLeave={() => {}}
                         onParticipants={handleParticipants}
-                        onShareScreen={() => {}}
+                onShareScreen={() => {}}
                         onEditMap={handleEditMap}
-                    />
+            />
                 </div>
             </div>
 
@@ -133,7 +133,7 @@ export default function MapArenaPage() {
                 <div className="flex items-center justify-between p-4 border-b border-gray-800">
                     <span className="font-bold">Participants</span>
                     <button onClick={() => setIsParticipantsOpen(false)} className="text-gray-400 hover:text-white">✕</button>
-                </div>
+                    </div>
                 <div className="flex-1 p-4 overflow-y-auto">
                     <p className="text-muted-foreground">Participants coming soon...</p>
                 </div>
