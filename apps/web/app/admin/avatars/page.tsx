@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Search, Upload, Trash2, Plus } from 'lucide-react';
-// import axios from '@/lib/axios'; // Commented out for now
+import { uploadImage } from '@/utils/storage';
 
 interface Avatar {
     id: string;
@@ -26,54 +26,13 @@ interface Avatar {
     createdAt: string;
 }
 
-// Dummy data for now
-const dummyAvatars: Avatar[] = [
-    {
-        id: '1',
-        name: 'Classic Avatar',
-        imageUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Classic',
-        category: 'Default',
-        createdAt: '2024-03-15T10:00:00Z',
-    },
-    {
-        id: '2',
-        name: 'Pixel Art',
-        imageUrl: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=Pixel',
-        category: 'Pixel',
-        createdAt: '2024-03-15T11:00:00Z',
-    },
-    {
-        id: '3',
-        name: 'Bot Avatar',
-        imageUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=Bot',
-        category: 'Bot',
-        createdAt: '2024-03-15T12:00:00Z',
-    },
-    {
-        id: '4',
-        name: 'Adventurer',
-        imageUrl: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Adventurer',
-        category: 'Fantasy',
-        createdAt: '2024-03-15T13:00:00Z',
-    },
-];
-
 export default function AvatarsPage() {
-    const [avatars, setAvatars] = useState<Avatar[]>(dummyAvatars);
+    const [avatars, setAvatars] = useState<Avatar[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [avatarToDelete, setAvatarToDelete] = useState<Avatar | null>(null);
-
-    // const fetchAvatars = async () => {
-    //     try {
-    //         const response = await axios.get('/api/v1/admin/avatars');
-    //         setAvatars(response.data);
-    //     } catch (error) {
-    //         console.error('Error fetching avatars:', error);
-    //     }
-    // };
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -84,51 +43,37 @@ export default function AvatarsPage() {
 
     const handleUpload = async () => {
         if (!selectedFile) return;
-
-        // Simulate upload for now
         setUploadProgress(0);
-        const interval = setInterval(() => {
-            setUploadProgress((prev) => {
-                if (prev >= 100) {
-                    clearInterval(interval);
-                    setIsUploadDialogOpen(false);
-                    // Add new avatar to the list
-                    const newAvatar: Avatar = {
-                        id: Date.now().toString(),
-                        name: selectedFile.name.split('.')[0],
-                        imageUrl: URL.createObjectURL(selectedFile),
-                        category: 'Custom',
-                        createdAt: new Date().toISOString(),
-                    };
-                    setAvatars([...avatars, newAvatar]);
-                    setSelectedFile(null);
-                    return 100;
-                }
-                return prev + 10;
-            });
-        }, 200);
-
-        /* Commented out actual upload logic for now
         try {
-            const formData = new FormData();
-            formData.append('avatar', selectedFile);
-            await axios.post('/api/v1/admin/avatars', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-                onUploadProgress: (progressEvent) => {
-                    const progress = progressEvent.total
-                        ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
-                        : 0;
-                    setUploadProgress(progress);
-                },
-            });
-            await fetchAvatars();
+            const { path, error } = await uploadImage(
+                selectedFile,
+                'avatars',
+                '', // empty path to store directly in avatars bucket
+            );
+
+            if (error) {
+                console.error('Error uploading avatar:', error);
+                return;
+            }
+
+            console.log('File uploaded successfully to:', path);
+
+            // Add new avatar to the list
+            const newAvatar: Avatar = {
+                id: Date.now().toString(),
+                name: selectedFile.name.split('.')[0],
+                imageUrl: path, // Use the Supabase URL
+                category: 'Custom',
+                createdAt: new Date().toISOString(),
+            };
+
+            setAvatars([...avatars, newAvatar]);
+            setSelectedFile(null);
             setIsUploadDialogOpen(false);
+            setUploadProgress(100);
         } catch (error) {
             console.error('Error uploading avatar:', error);
         }
-        */
     };
 
     const handleDelete = async (avatarId: string) => {
@@ -152,7 +97,7 @@ export default function AvatarsPage() {
             avatar.category.toLowerCase().includes(searchQuery.toLowerCase()),
     );
 
-  return (
+    return (
         /**
          * UI Structure:
          * 1. Main Container (space-y-6)
@@ -269,7 +214,7 @@ export default function AvatarsPage() {
                         <CardContent className="!p-3 !pt-1">
                             <div className="relative aspect-square w-full rounded-lg overflow-hidden border bg-muted/50 transition-transform group-hover:scale-[1.02]">
                                 <Image
-                                    src="/nft.png"
+                                    src={avatar.imageUrl}
                                     alt={avatar.name}
                                     fill
                                     className="object-cover transition-transform group-hover:scale-105"
@@ -308,20 +253,15 @@ export default function AvatarsPage() {
                     <DialogHeader>
                         <DialogTitle>Delete Avatar</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to delete &ldquo;{avatarToDelete?.name}&rdquo;? This action cannot be undone.
+                            Are you sure you want to delete &ldquo;{avatarToDelete?.name}&rdquo;? This action cannot be
+                            undone.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setAvatarToDelete(null)}
-                        >
+                        <Button variant="outline" onClick={() => setAvatarToDelete(null)}>
                             Cancel
                         </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={() => avatarToDelete && handleDelete(avatarToDelete.id)}
-                        >
+                        <Button variant="destructive" onClick={() => avatarToDelete && handleDelete(avatarToDelete.id)}>
                             Delete
                         </Button>
                     </DialogFooter>
