@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,14 +16,14 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Search, Upload, Trash2, Plus } from 'lucide-react';
-import { uploadImage } from '@/utils/storage';
+import { uploadImage, deleteImage } from '@/utils/storage';
+import axios from '@/lib/axios';
+import { AxiosError } from 'axios';
 
 interface Avatar {
     id: string;
     name: string;
     imageUrl: string;
-    category: string;
-    createdAt: string;
 }
 
 export default function AvatarsPage() {
@@ -33,6 +33,23 @@ export default function AvatarsPage() {
     const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [avatarToDelete, setAvatarToDelete] = useState<Avatar | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [avatarName, setAvatarName] = useState('');
+
+    useEffect(() => {
+        fetchAvatars();
+    }, []);
+
+    const fetchAvatars = async () => {
+        try {
+            const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/avatars`);
+            setAvatars(response.data.avatars);
+        } catch (error) {
+            console.error('Error fetching avatars:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -42,9 +59,10 @@ export default function AvatarsPage() {
     };
 
     const handleUpload = async () => {
-        if (!selectedFile) return;
+        if (!selectedFile || !avatarName.trim()) return;
         setUploadProgress(0);
         try {
+            // First upload the image to Supabase
             const { path, error } = await uploadImage(
                 selectedFile,
                 'avatars',
@@ -58,44 +76,101 @@ export default function AvatarsPage() {
 
             console.log('File uploaded successfully to:', path);
 
-            // Add new avatar to the list
-            const newAvatar: Avatar = {
-                id: Date.now().toString(),
-                name: selectedFile.name.split('.')[0],
-                imageUrl: path, // Use the Supabase URL
-                category: 'Custom',
-                createdAt: new Date().toISOString(),
-            };
+            // Then store the metadata in the database
+            try {
+                const response = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/admin/avatar`, {
+                    imageUrl: path,
+                    name: avatarName.trim(),
+                });
 
-            setAvatars([...avatars, newAvatar]);
-            setSelectedFile(null);
-            setIsUploadDialogOpen(false);
-            setUploadProgress(100);
+                // Add new avatar to the list with the database ID
+                const newAvatar: Avatar = {
+                    id: response.data.avatarId,
+                    name: avatarName.trim(),
+                    imageUrl: path,
+                };
+
+                setAvatars([...avatars, newAvatar]);
+                setSelectedFile(null);
+                setAvatarName('');
+                setIsUploadDialogOpen(false);
+                setUploadProgress(100);
+            } catch (apiError) {
+                console.error('Error saving avatar metadata:', apiError);
+            }
         } catch (error) {
             console.error('Error uploading avatar:', error);
         }
     };
 
     const handleDelete = async (avatarId: string) => {
-        // Update local state for now
-        setAvatars(avatars.filter((avatar) => avatar.id !== avatarId));
-        setAvatarToDelete(null);
-
-        /* Commented out actual delete logic for now
         try {
-            await axios.delete(`/api/v1/admin/avatars/${avatarId}`);
-            await fetchAvatars();
-        } catch (error) {
-            console.error('Error deleting avatar:', error);
+            console.log('Starting delete process for avatar:', avatarId);
+            // First get the avatar to get the imageUrl
+            const avatar = avatars.find(a => a.id === avatarId);
+            if (!avatar) {
+                console.error('Avatar not found');
+                return;
+            }
+
+            // Log the current cookies
+            console.log('Current cookies:', document.cookie);
+
+            const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/admin/avatar/${avatarId}`;
+            console.log('Making delete request to:', url);
+            
+            // Delete from database
+            const response = await axios.delete(url, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                withCredentials: true
+            });
+            
+            console.log('Delete response:', response);
+            
+            console.log('Database delete successful, proceeding with storage delete');
+            // Delete from storage
+            const { error } = await deleteImage(avatar.imageUrl, 'avatars');
+            if (error) {
+                console.error('Error deleting image from storage:', error);
+                // Continue with UI update even if storage deletion fails
+            }
+            
+            console.log('Delete process completed successfully');
+            // Update local state
+            setAvatars(avatars.filter((avatar) => avatar.id !== avatarId));
+            setAvatarToDelete(null);
+        } catch (error: unknown) {
+            if (error instanceof AxiosError) {
+                console.error('Error in delete process:', error);
+                console.error('Error details:', {
+                    status: error.response?.status,
+                    statusText: error.response?.statusText,
+                    data: error.response?.data,
+                    headers: error.response?.headers
+                });
+            } else {
+                console.error('Unknown error:', error);
+            }
+            // Show error to user
+            alert('Failed to delete avatar. Please try again.');
         }
-        */
     };
 
     const filteredAvatars = avatars.filter(
         (avatar) =>
-            avatar.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            avatar.category.toLowerCase().includes(searchQuery.toLowerCase()),
+            avatar.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="text-muted-foreground">Loading avatars...</div>
+            </div>
+        );
+    }
 
     return (
         /**
@@ -153,6 +228,15 @@ export default function AvatarsPage() {
                             </DialogHeader>
                             <div className="space-y-4 py-4">
                                 <div className="space-y-2">
+                                    <Label htmlFor="avatar-name">Avatar Name</Label>
+                                    <Input
+                                        id="avatar-name"
+                                        placeholder="Enter avatar name"
+                                        value={avatarName}
+                                        onChange={(e) => setAvatarName(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
                                     <Label htmlFor="avatar">Avatar Image</Label>
                                     <Input
                                         id="avatar"
@@ -191,7 +275,7 @@ export default function AvatarsPage() {
                                 <Button variant="outline" onClick={() => setIsUploadDialogOpen(false)}>
                                     Cancel
                                 </Button>
-                                <Button onClick={handleUpload} disabled={!selectedFile || uploadProgress > 0}>
+                                <Button onClick={handleUpload} disabled={!selectedFile || !avatarName.trim() || uploadProgress > 0}>
                                     <Upload className="mr-2 h-4 w-4" />
                                     Upload
                                 </Button>
@@ -225,12 +309,6 @@ export default function AvatarsPage() {
                         </CardContent>
                         <CardFooter className="!p-3 !pt-1 !gap-1">
                             <div className="flex items-center justify-between w-full">
-                                <div className="flex flex-col !gap-0.5">
-                                    <span className="text-sm font-medium">{avatar.category}</span>
-                                    <span className="text-xs text-muted-foreground">
-                                        Added {new Date(avatar.createdAt).toLocaleDateString()}
-                                    </span>
-                                </div>
                                 <div className="flex items-center gap-2">
                                     <Button
                                         variant="ghost"
