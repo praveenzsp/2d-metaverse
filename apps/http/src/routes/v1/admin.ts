@@ -75,7 +75,7 @@ adminRouter.post('/avatar', adminMiddleware, async (req: Request, res: Response)
     }
 });
 
-adminRouter.post('/map', adminMiddleware, async (req: Request, res: Response) => {
+adminRouter.post('/create-map', adminMiddleware, async (req: Request, res: Response) => {
     const parsedData = CreateMapSchema.safeParse(req.body);
     if (!parsedData.success) {
         res.status(400).json({ error: parsedData.error.message });
@@ -259,6 +259,176 @@ adminRouter.put('/update-role', adminMiddleware, async (req: Request, res: Respo
     } catch (error) {
         console.error('Error updating user role:', error);
         res.status(500).json({ error: 'Failed to update user role' });
+        return;
+    }
+});
+
+adminRouter.get('/maps', adminMiddleware, async (req: Request, res: Response) => {
+    try {
+        const maps = await prisma.map.findMany({
+            select: {
+                id: true,
+                name: true,
+                thumbnail: true,
+                width: true,
+                height: true,
+                mapElements: {
+                    select: {
+                        elementId: true,
+                        x: true,
+                        y: true,
+                        element: {
+                            select: {
+                                name: true,
+                                imageUrl: true,
+                                width: true,
+                                height: true,
+                                static: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        res.status(200).json({
+            maps: maps.map(map => ({
+                id: map.id,
+                name: map.name,
+                thumbnail: map.thumbnail,
+                dimensions: `${map.width}x${map.height}`,
+                elements: map.mapElements.map((me: { 
+                    elementId: string; 
+                    x: number | null; 
+                    y: number | null; 
+                    element: {
+                        name: string;
+                        imageUrl: string;
+                        width: number;
+                        height: number;
+                        static: boolean;
+                    }
+                }) => ({
+                    id: me.elementId,
+                    x: me.x ?? 0,
+                    y: me.y ?? 0,
+                    element: me.element
+                }))
+            }))
+        });
+        return;
+    } catch (error) {
+        console.error('Error fetching maps:', error);
+        res.status(500).json({ error: 'Failed to fetch maps' });
+        return;
+    }
+});
+
+adminRouter.put('/update-map', adminMiddleware, async (req: Request, res: Response) => {
+    const { mapId, name, thumbnail } = req.body;
+
+    if (!mapId) {
+        res.status(400).json({ error: 'Map ID is required' });
+        return;
+    }
+
+    try {
+        const map = await prisma.map.update({
+            where: { id: mapId },
+            data: {
+                name: name,
+                thumbnail: thumbnail
+            },
+            select: {
+                id: true,
+                name: true,
+                thumbnail: true,
+                width: true,
+                height: true,
+                mapElements: {
+                    select: {
+                        elementId: true,
+                        x: true,
+                        y: true,
+                        element: {
+                            select: {
+                                name: true,
+                                imageUrl: true,
+                                width: true,
+                                height: true,
+                                static: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        res.status(200).json({
+            map: {
+                id: map.id,
+                name: map.name,
+                thumbnail: map.thumbnail,
+                dimensions: `${map.width}x${map.height}`,
+                elements: map.mapElements.map((me: { 
+                    elementId: string; 
+                    x: number | null; 
+                    y: number | null; 
+                    element: {
+                        name: string;
+                        imageUrl: string;
+                        width: number;
+                        height: number;
+                        static: boolean;
+                    }
+                }) => ({
+                    id: me.elementId,
+                    x: me.x ?? 0,
+                    y: me.y ?? 0,
+                    element: me.element
+                }))
+            }
+        });
+        return;
+    } catch (error) {
+        console.error('Error updating map:', error);
+        res.status(500).json({ error: 'Failed to update map' });
+        return;
+    }
+});
+
+adminRouter.delete('/delete-map', adminMiddleware, async (req: Request, res: Response) => {
+    const { mapId } = req.body;
+
+    if (!mapId) {
+        res.status(400).json({ error: 'Map ID is required' });
+        return;
+    }
+
+    try {
+        // First get the map to get the thumbnail URL
+        const map = await prisma.map.findUnique({
+            where: { id: mapId },
+            select: {
+                thumbnail: true
+            }
+        });
+
+        if (!map) {
+            res.status(404).json({ error: 'Map not found' });
+            return;
+        }
+
+        // Delete the map from database
+        await prisma.map.delete({
+            where: { id: mapId }
+        });
+
+        res.status(200).json({ message: 'Map deleted successfully' });
+        return;
+    } catch (error) {
+        console.error('Error deleting map:', error);
+        res.status(500).json({ error: 'Failed to delete map' });
         return;
     }
 });

@@ -7,7 +7,7 @@ import prisma from "@repo/db/client";
 const spaceRouter=Router();
 
 
-spaceRouter.post("/", userAuthMiddleware, async (req:Request, res:Response)=>{
+spaceRouter.post("/create-space", userAuthMiddleware, async (req:Request, res:Response)=>{
 	const parsedData = CreateSpaceSchema.safeParse(req.body);
 
 	if(!parsedData.success){
@@ -221,6 +221,7 @@ spaceRouter.post("/element", userAuthMiddleware, async (req:Request, res:Respons
 })
 
 spaceRouter.delete("/element", userAuthMiddleware, async (req:Request, res:Response)=>{
+	// this route is abt deleting the existing element from the space, no need to delete the element from the database
 	const parsedData = DeleteElementFromSpaceSchema.safeParse(req.body);
 
 	if(!parsedData.success){
@@ -265,6 +266,7 @@ spaceRouter.delete("/element", userAuthMiddleware, async (req:Request, res:Respo
 })
 
 spaceRouter.get("/:spaceId", userAuthMiddleware, async (req:Request, res:Response)=>{
+	// this route is abt getting the space elements, no need to check if the user is the creator of the space
 	const {spaceId} = req.params;
 
 	try{
