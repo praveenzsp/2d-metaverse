@@ -1,18 +1,18 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
+import axios from '@/lib/axios';
 
 interface MapElement {
     id: string;
     name: string;
     imageUrl: string;
-    type: 'tree' | 'rock' | 'chest' | 'house' | 'fence' | 'bush' | 'flower' | 'path' | 'work_desk';
-    size: {
-        width: number;
-        height: number;
-    };
+    type: string;
+    width: number;
+    height: number;
+    static: boolean;
 }
 
 interface MapEditSidebarProps {
@@ -23,86 +23,6 @@ interface MapEditSidebarProps {
     onDeleteSelected?: () => void;
 }
 
-// Dummy data for map elements
-const mapElements: MapElement[] = [
-    {
-        id: '1',
-        name: 'Work Desk',
-        imageUrl: '/elements/work_desk.png',
-        type: 'work_desk',
-        size: { width: 1, height: 1 }
-    },
-    {
-        id: '2',
-        name: 'Work Desk (Large)',
-        imageUrl: '/elements/work_desk.png',
-        type: 'work_desk',
-        size: { width: 2, height: 2 }
-    },
-    {
-        id: '3',
-        name: 'Work Desk (XL)',
-        imageUrl: '/elements/work_desk.png',
-        type: 'work_desk',
-        size: { width: 3, height: 2 }
-    },
-    {
-        id: '4',
-        name: 'Large Rock',
-        imageUrl: '/elements/work_desk.png',
-        type: 'rock',
-        size: { width: 2, height: 2 }
-    },
-    {
-        id: '5',
-        name: 'Small Rock',
-        imageUrl: '/elements/work_desk.png',
-        type: 'rock',
-        size: { width: 1, height: 1 }
-    },
-    {
-        id: '6',
-        name: 'Treasure Chest',
-        imageUrl: '/elements/work_desk.png',
-        type: 'chest',
-        size: { width: 1, height: 1 }
-    },
-    {
-        id: '7',
-        name: 'Wooden House',
-        imageUrl: '/elements/work_desk.png',
-        type: 'house',
-        size: { width: 3, height: 2 }
-    },
-    {
-        id: '8',
-        name: 'Stone Fence',
-        imageUrl: '/elements/work_desk.png',
-        type: 'fence',
-        size: { width: 3, height: 2 }
-    },
-    {
-        id: '9',
-        name: 'Bush',
-        imageUrl: '/elements/work_desk.png',
-        type: 'bush',
-        size: { width: 1, height: 1 }
-    },
-    {
-        id: '10',
-        name: 'Flower Patch',
-        imageUrl: '/elements/work_desk.png',
-        type: 'flower',
-        size: { width: 1, height: 1 }
-    },
-    {
-        id: '11',
-        name: 'Stone Path',
-        imageUrl: '/elements/work_desk.png',
-        type: 'path',
-        size: { width: 1, height: 1 }
-    }
-];
 
 const MapEditSidebar: React.FC<MapEditSidebarProps> = ({
     isOpen,
@@ -111,7 +31,29 @@ const MapEditSidebar: React.FC<MapEditSidebarProps> = ({
     onElementDragStart,
     onDeleteSelected,
 }) => {
-	const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [elements, setElements] = useState<MapElement[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        const fetchElements = async () => {
+            try {
+                setIsLoading(true);
+                const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/elements`);
+                console.log('Elements response:', response.data);
+                const elementsData = response.data.elements || response.data;
+                console.log('Elements data to set:', elementsData);
+                setElements(elementsData);
+            } catch (error) {
+                console.error('Error fetching elements:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchElements();
+    }, []);
+
     if (!isOpen) return null;
 
     const handleDragStart = (e: React.DragEvent, element: MapElement) => {
@@ -142,38 +84,46 @@ const MapEditSidebar: React.FC<MapEditSidebarProps> = ({
                         type="text"
                         placeholder="Search elements..."
                         className="w-full px-3 py-2 bg-gray-800 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-						value={searchQuery}
-						onChange={(e) => setSearchQuery(e.target.value)}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
 
                 {/* Elements Grid */}
                 <div className="flex-1 overflow-y-auto p-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        {mapElements.filter((element) => element.name.toLowerCase().includes(searchQuery.toLowerCase())).map((element) => (
-                            <div
-                                key={element.id}
-                                className="bg-gray-800 rounded-lg p-3 cursor-move hover:bg-gray-700 transition-colors"
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, element)}
-                            >
-                                <div className="relative aspect-square mb-2">
-                                    <Image
-                                        src={element.imageUrl}
-                                        alt={element.name}
-                                        fill
-                                        className="object-contain rounded-md"
-                                    />
+                    {isLoading ? (
+                        <div className="flex items-center justify-center h-full">
+                            <p className="text-gray-400">Loading elements...</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-4">
+                            {elements.filter((element) => 
+                                element.name.toLowerCase().includes(searchQuery.toLowerCase())
+                            ).map((element) => (
+                                <div
+                                    key={element.id}
+                                    className="bg-gray-800 rounded-lg p-3 cursor-move hover:bg-gray-700 transition-colors"
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, element)}
+                                >
+                                    <div className="relative aspect-square mb-2">
+                                        <Image
+                                            src={element.imageUrl}
+                                            alt={element.name}
+                                            fill
+                                            className="object-contain rounded-md"
+                                        />
+                                    </div>
+                                    <div className="text-sm">
+                                        <p className="font-medium">{element.name}</p>
+                                        <p className="text-gray-400 text-xs">
+                                            {element.width}x{element.height}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div className="text-sm">
-                                    <p className="font-medium">{element.name}</p>
-                                    <p className="text-gray-400 text-xs">
-                                        {element.size.width}x{element.size.height}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 

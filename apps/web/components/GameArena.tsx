@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Phaser from 'phaser';
+import axios from '@/lib/axios';
 
 // Define the structure for objects that can be placed on the grid
 interface GridObject {
@@ -17,10 +18,9 @@ interface MapElement {
     name: string;       // Display name of the element
     imageUrl: string;   // URL of the element's image
     type: string;       // Type of the element
-    size: {
-        width: number;  // Width in grid cells
-        height: number; // Height in grid cells
-    };
+    width: number;      // Width in grid cells
+    height: number;     // Height in grid cells
+    static: boolean;    // Whether the element is static
 }
 
 // Main game scene class that handles all game logic and rendering
@@ -51,6 +51,7 @@ class MainScene extends Phaser.Scene {
     private isDragging = false;             // Flag for drag operation
     private dragStartX = 0;                 // Starting X position of drag
     private dragStartY = 0;                 // Starting Y position of drag
+    private mapId: string = '';
 
     // Constructor for the scene
     constructor() {
@@ -195,71 +196,79 @@ class MainScene extends Phaser.Scene {
 
             let sprite: Phaser.GameObjects.GameObject;
 
-            // Create different types of objects based on the type parameter
-            switch (type) {
-                case 'work_desk':
-                    // Create a work desk using an image
-                    sprite = this.add.image(x, y, 'work_desk')
-                        .setDisplaySize(width * this.CELL_SIZE, height * this.CELL_SIZE)
-                        .setOrigin(0.5)  // Center the image
-                        .setInteractive({ draggable: true });  // Make it draggable
-                    break;
-                case 'tree':
-                    // Create a tree using graphics
-                    const treeGraphics = this.add.graphics();
-                    treeGraphics.fillStyle(0x228B22, 1);  // Dark green color
-                    treeGraphics.fillCircle(x, y - 10, 15);  // Tree top
-                    treeGraphics.fillStyle(0x8B4513, 1);  // Brown color
-                    treeGraphics.fillRect(x - 5, y, 10, 20);  // Tree trunk
-                    sprite = treeGraphics;
-                    break;
-                case 'rock':
-                    // Create a rock using graphics
-                    const rockGraphics = this.add.graphics();
-                    rockGraphics.fillStyle(0x808080, 1);  // Gray color
-                    rockGraphics.fillCircle(x, y, 20 * Math.max(width, height));  // Rock body
-                    rockGraphics.fillStyle(0x696969, 1);  // Darker gray
-                    rockGraphics.fillCircle(x - 5, y - 5, 5 * Math.max(width, height));  // Rock detail
-                    sprite = rockGraphics;
-                    break;
-                case 'chest':
-                    // Create a treasure chest using graphics
-                    const chestGraphics = this.add.graphics();
-                    chestGraphics.fillStyle(0x8B4513, 1);  // Brown color
-                    chestGraphics.fillRect(x - 15, y - 10, 30, 20);  // Chest body
-                    chestGraphics.fillStyle(0xFFD700, 1);  // Gold color
-                    chestGraphics.fillRect(x - 12, y - 8, 24, 4);  // Chest lid
-                    chestGraphics.fillRect(x - 8, y - 4, 16, 12);  // Chest front
-                    sprite = chestGraphics;
-                    break;
-                case 'house':
-                    // Create a house using graphics
-                    const houseGraphics = this.add.graphics();
-                    // House body
-                    houseGraphics.fillStyle(0x8B4513, 1);  // Brown color
-                    houseGraphics.fillRect(x - (width * this.CELL_SIZE) / 2, y - (height * this.CELL_SIZE) / 2, 
-                        width * this.CELL_SIZE, height * this.CELL_SIZE);
-                    // Roof
-                    houseGraphics.fillStyle(0x800000, 1);  // Dark red color
-                    houseGraphics.fillTriangle(
-                        x - (width * this.CELL_SIZE) / 2, y - (height * this.CELL_SIZE) / 2,
-                        x + (width * this.CELL_SIZE) / 2, y - (height * this.CELL_SIZE) / 2,
-                        x, y - (height * this.CELL_SIZE) / 2 - 20
-                    );
-                    // Door
-                    houseGraphics.fillStyle(0x4B2F0F, 1);  // Dark brown color
-                    houseGraphics.fillRect(x - 10, y, 20, 30);
-                    sprite = houseGraphics;
-                    break;
-                default:
-                    // Create a default rectangle for unknown types
-                    sprite = this.add.rectangle(
-                        x,
-                        y,
-                        this.CELL_SIZE * width * 0.8,
-                        this.CELL_SIZE * height * 0.8,
-                        color
-                    ).setInteractive({ draggable: true });
+            // Check if the type is an image key (starts with 'element_')
+            if (type.startsWith('element_')) {
+                console.log('Creating image sprite with key:', type);
+                sprite = this.add.image(x, y, type)
+                    .setDisplaySize(width * this.CELL_SIZE, height * this.CELL_SIZE)
+                    .setOrigin(0.5)
+                    .setInteractive({ draggable: true });
+            } else {
+                // Create different types of objects based on the type parameter
+                switch (type) {
+                    case 'work_desk':
+                        sprite = this.add.image(x, y, 'work_desk')
+                            .setDisplaySize(width * this.CELL_SIZE, height * this.CELL_SIZE)
+                            .setOrigin(0.5)
+                            .setInteractive({ draggable: true });
+                        break;
+                    case 'tree':
+                        // Create a tree using graphics
+                        const treeGraphics = this.add.graphics();
+                        treeGraphics.fillStyle(0x228B22, 1);  // Dark green color
+                        treeGraphics.fillCircle(x, y - 10, 15);  // Tree top
+                        treeGraphics.fillStyle(0x8B4513, 1);  // Brown color
+                        treeGraphics.fillRect(x - 5, y, 10, 20);  // Tree trunk
+                        sprite = treeGraphics;
+                        break;
+                    case 'rock':
+                        // Create a rock using graphics
+                        const rockGraphics = this.add.graphics();
+                        rockGraphics.fillStyle(0x808080, 1);  // Gray color
+                        rockGraphics.fillCircle(x, y, 20 * Math.max(width, height));  // Rock body
+                        rockGraphics.fillStyle(0x696969, 1);  // Darker gray
+                        rockGraphics.fillCircle(x - 5, y - 5, 5 * Math.max(width, height));  // Rock detail
+                        sprite = rockGraphics;
+                        break;
+                    case 'chest':
+                        // Create a treasure chest using graphics
+                        const chestGraphics = this.add.graphics();
+                        chestGraphics.fillStyle(0x8B4513, 1);  // Brown color
+                        chestGraphics.fillRect(x - 15, y - 10, 30, 20);  // Chest body
+                        chestGraphics.fillStyle(0xFFD700, 1);  // Gold color
+                        chestGraphics.fillRect(x - 12, y - 8, 24, 4);  // Chest lid
+                        chestGraphics.fillRect(x - 8, y - 4, 16, 12);  // Chest front
+                        sprite = chestGraphics;
+                        break;
+                    case 'house':
+                        // Create a house using graphics
+                        const houseGraphics = this.add.graphics();
+                        // House body
+                        houseGraphics.fillStyle(0x8B4513, 1);  // Brown color
+                        houseGraphics.fillRect(x - (width * this.CELL_SIZE) / 2, y - (height * this.CELL_SIZE) / 2, 
+                            width * this.CELL_SIZE, height * this.CELL_SIZE);
+                        // Roof
+                        houseGraphics.fillStyle(0x800000, 1);  // Dark red color
+                        houseGraphics.fillTriangle(
+                            x - (width * this.CELL_SIZE) / 2, y - (height * this.CELL_SIZE) / 2,
+                            x + (width * this.CELL_SIZE) / 2, y - (height * this.CELL_SIZE) / 2,
+                            x, y - (height * this.CELL_SIZE) / 2 - 20
+                        );
+                        // Door
+                        houseGraphics.fillStyle(0x4B2F0F, 1);  // Dark brown color
+                        houseGraphics.fillRect(x - 10, y, 20, 30);
+                        sprite = houseGraphics;
+                        break;
+                    default:
+                        // Create a default rectangle for unknown types
+                        sprite = this.add.rectangle(
+                            x,
+                            y,
+                            this.CELL_SIZE * width * 0.8,
+                            this.CELL_SIZE * height * 0.8,
+                            color
+                        ).setInteractive({ draggable: true });
+                }
             }
 
             // Create a grid object to store the object's data
@@ -453,6 +462,8 @@ class MainScene extends Phaser.Scene {
 
     // Handle dropped elements from the sidebar
     handleDroppedElement(element: MapElement, worldX: number, worldY: number) {
+        console.log('Dropped element:', element);
+        
         // Convert world coordinates to grid coordinates
         const gridX = Math.floor(worldX / this.CELL_SIZE);
         const gridY = Math.floor(worldY / this.CELL_SIZE);
@@ -460,15 +471,55 @@ class MainScene extends Phaser.Scene {
         // Check if position is occupied
         if (this.isPositionOccupied(gridX, gridY)) return;
 
-        // Add the object to the grid
-        this.addObjectToGrid(
-            gridX,
-            gridY,
-            element.type,
-            0xffffff,  // White color for default objects
-            element.size.width,
-            element.size.height
-        );
+        // Load the element's image if not already loaded
+        const imageKey = `element_${element.id}`;
+        console.log('Loading image with key:', imageKey, 'from URL:', element.imageUrl);
+        
+        if (!this.textures.exists(imageKey)) {
+            this.load.image(imageKey, element.imageUrl);
+            this.load.once('complete', () => {
+                console.log('Image loaded successfully:', imageKey);
+                this.addObjectToGrid(
+                    gridX,
+                    gridY,
+                    imageKey,
+                    0xffffff,
+                    element.width,
+                    element.height
+                );
+                // Save element position after adding to grid
+                this.saveElementPosition(element.id, gridX, gridY);
+            });
+            this.load.start();
+        } else {
+            console.log('Image already loaded:', imageKey);
+            // If image is already loaded, add object immediately
+            this.addObjectToGrid(
+                gridX,
+                gridY,
+                imageKey,
+                0xffffff,
+                element.width,
+                element.height
+            );
+            // Save element position after adding to grid
+            this.saveElementPosition(element.id, gridX, gridY);
+        }
+    }
+
+    // Save element position to the backend
+    private async saveElementPosition(elementId: string, x: number, y: number) {
+        try {
+            const response = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/admin/add-map-element`, {
+                elementId,
+                x,
+                y,
+                mapId: this.mapId
+            });
+            console.log('Element position saved:', response.data);
+        } catch (error) {
+            console.error('Error saving element position:', error);
+        }
     }
 
     // Handle pointer down events
@@ -578,19 +629,36 @@ class MainScene extends Phaser.Scene {
     }
 
     // Delete the currently selected object
-    private deleteSelectedObject() {
+    private async deleteSelectedObject() {
         if (this.selectedObject) {
-            // Remove from grid objects array
-            const index = this.gridObjects.indexOf(this.selectedObject);
-            if (index > -1) {
-                this.gridObjects.splice(index, 1);
+            try {
+                // Get the element ID from the sprite's texture key
+                const elementId = this.selectedObject.type.replace('element_', '');
+                
+                // Call the delete endpoint
+                await axios.delete(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/admin/delete-map-element`, {
+                    data: {
+                        mapId: this.mapId,
+                        elementId
+                    }
+                });
+
+                // Remove from grid objects array
+                const index = this.gridObjects.indexOf(this.selectedObject);
+                if (index > -1) {
+                    this.gridObjects.splice(index, 1);
+                }
+
+                // Destroy the sprite
+                this.selectedObject.sprite.destroy();
+
+                // Clear selection
+                this.selectedObject = null;
+
+                console.log('Element deleted successfully');
+            } catch (error) {
+                console.error('Error deleting element:', error);
             }
-
-            // Destroy the sprite
-            this.selectedObject.sprite.destroy();
-
-            // Clear selection
-            this.selectedObject = null;
         }
     }
 
@@ -598,10 +666,14 @@ class MainScene extends Phaser.Scene {
     deleteSelected() {
         this.deleteSelectedObject();
     }
+
+    setMapId(id: string) {
+        this.mapId = id;
+    }
 }
 
 // React component that wraps the Phaser game
-const GameArena = forwardRef<{ handleDeleteSelected?: () => void }>((props, ref) => {
+const GameArena = forwardRef<{ handleDeleteSelected?: () => void }, { mapId: string }>((props, ref) => {
     // Reference to the Phaser game instance
     const gameRef = useRef<Phaser.Game | null>(null);
     // Reference to the main scene
@@ -640,6 +712,10 @@ const GameArena = forwardRef<{ handleDeleteSelected?: () => void }>((props, ref)
         // Get scene reference after a short delay to ensure it's initialized
         setTimeout(() => {
             sceneRef.current = gameRef.current?.scene.getScene('MainScene') as MainScene;
+            // Pass mapId to the scene
+            if (sceneRef.current) {
+                sceneRef.current.setMapId(props.mapId);
+            }
         }, 1000);
 
         // Cleanup when component unmounts
@@ -650,7 +726,7 @@ const GameArena = forwardRef<{ handleDeleteSelected?: () => void }>((props, ref)
                 sceneRef.current = null;
             }
         };
-    }, []);
+    }, [props.mapId]);
 
     // Handle drag over events
     const handleDragOver = (e: React.DragEvent) => {

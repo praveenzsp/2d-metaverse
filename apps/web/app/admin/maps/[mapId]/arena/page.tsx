@@ -21,10 +21,9 @@ interface MapElement {
     name: string;
     imageUrl: string;
     type: string;
-    size: {
-        width: number;
-        height: number;
-    };
+    width: number;
+    height: number;
+    static: boolean;
 }
 
 export default function MapArenaPage() {
@@ -90,7 +89,7 @@ export default function MapArenaPage() {
                 {/* Map Arena */}
                 <div className="flex-1 overflow-auto">
                     <div className="h-full w-full rounded-lg overflow-hidden border bg-muted/50 flex items-center justify-center mx-1">
-                        <GameArena ref={gameRef} />
+                        <GameArena ref={gameRef} mapId={params.mapId as string} />
                     </div>
                 </div>
 

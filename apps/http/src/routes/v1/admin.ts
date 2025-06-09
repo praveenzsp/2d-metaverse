@@ -433,4 +433,104 @@ adminRouter.delete('/delete-map', adminMiddleware, async (req: Request, res: Res
     }
 });
 
+adminRouter.post('/add-map-element', adminMiddleware, async (req: Request, res: Response) => {
+    const { mapId, elementId, x, y } = req.body;
+
+    if (!mapId || !elementId || x === undefined || y === undefined) {
+        res.status(400).json({ error: 'Map ID, Element ID, X, and Y coordinates are required' });
+        return;
+    }
+
+    try {
+        // First check if the map and element exist
+        const [map, element] = await Promise.all([
+            prisma.map.findUnique({ where: { id: mapId } }),
+            prisma.element.findUnique({ where: { id: elementId } })
+        ]);
+
+        if (!map) {
+            res.status(404).json({ error: 'Map not found' });
+            return;
+        }
+
+        if (!element) {
+            res.status(404).json({ error: 'Element not found' });
+            return;
+        }
+
+        // Create the map element
+        const mapElement = await prisma.mapElements.create({
+            data: {
+                mapId,
+                elementId,
+                x,
+                y
+            },
+            include: {
+                element: {
+                    select: {
+                        name: true,
+                        imageUrl: true,
+                        width: true,
+                        height: true,
+                        static: true
+                    }
+                }
+            }
+        });
+
+        res.status(200).json({
+            mapElement: {
+                id: mapElement.id,
+                x: mapElement.x,
+                y: mapElement.y,
+                element: mapElement.element
+            }
+        });
+        return;
+    } catch (error) {
+        console.error('Error adding element to map:', error);
+        res.status(500).json({ error: 'Failed to add element to map' });
+        return;
+    }
+});
+
+adminRouter.delete('/delete-map-element', adminMiddleware, async (req: Request, res: Response) => {
+    const { mapId, elementId } = req.body;
+
+    if (!mapId || !elementId) {
+        res.status(400).json({ error: 'Map ID and Element ID are required' });
+        return;
+    }
+
+    try {
+        // First check if the map element exists
+        const mapElement = await prisma.mapElements.findFirst({
+            where: {
+                mapId,
+                elementId
+            }
+        });
+
+        if (!mapElement) {
+            res.status(404).json({ error: 'Map element not found' });
+            return;
+        }
+
+        // Delete the map element
+        await prisma.mapElements.delete({
+            where: {
+                id: mapElement.id
+            }
+        });
+
+        res.status(200).json({ message: 'Element removed from map successfully' });
+        return;
+    } catch (error) {
+        console.error('Error removing element from map:', error);
+        res.status(500).json({ error: 'Failed to remove element from map' });
+        return;
+    }
+});
+
 export default adminRouter;
