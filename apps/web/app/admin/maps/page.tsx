@@ -112,11 +112,11 @@ export default function MapsPage() {
                 setMaps(mapsResponse.data.maps);
                 
                 // Reset form
-                setIsCreateDialogOpen(false);
+                    setIsCreateDialogOpen(false);
                 setMapName('');
                 setMapWidth('150');
                 setMapHeight('100');
-                setSelectedFile(null);
+                    setSelectedFile(null);
             }
         } catch (error) {
             console.error('Error creating map:', error);
@@ -166,10 +166,10 @@ export default function MapsPage() {
                 ));
                 
                 // Reset form and close dialog
-                setIsEditDialogOpen(false);
-                setSelectedMap(null);
+        setIsEditDialogOpen(false);
+        setSelectedMap(null);
                 setMapName('');
-                setSelectedFile(null);
+        setSelectedFile(null);
             }
         } catch (error) {
             console.error('Error updating map:', error);
@@ -189,8 +189,8 @@ export default function MapsPage() {
             );
             
             // Update UI state
-            setMaps(maps.filter((map) => map.id !== mapId));
-            setMapToDelete(null);
+        setMaps(maps.filter((map) => map.id !== mapId));
+        setMapToDelete(null);
         } catch (error) {
             console.error('Error deleting map:', error);
         } finally {
@@ -247,60 +247,60 @@ export default function MapsPage() {
                     </div>
                 ) : (
                     filteredMaps.map((map) => (
-                        <Card
-                            key={map.id}
-                            className="group overflow-hidden transition-all hover:shadow-lg hover:border-primary/20 p-0"
+                    <Card
+                        key={map.id}
+                        className="group overflow-hidden transition-all hover:shadow-lg hover:border-primary/20 p-0"
+                    >
+                        {/* Image section - full width */}
+                        <div
+                            className="relative aspect-[16/9] w-full overflow-hidden bg-muted/50 transition-transform group-hover:scale-[1.02] cursor-pointer"
+                            onClick={() => handleMapClick(map.id)}
                         >
-                            {/* Image section - full width */}
-                            <div
-                                className="relative aspect-[16/9] w-full overflow-hidden bg-muted/50 transition-transform group-hover:scale-[1.02] cursor-pointer"
+                            <Image
+                                    src={map.thumbnail || "/map.jpg"}
+                                alt={map.name}
+                                fill
+                                className="object-cover transition-transform group-hover:scale-105"
+                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+
+                        {/* Content section */}
+                        <div className="p-3 space-y-1">
+                            <h3
+                                className="text-base font-medium truncate cursor-pointer hover:text-primary"
                                 onClick={() => handleMapClick(map.id)}
                             >
-                                <Image
-                                    src={map.thumbnail || "/map.jpg"}
-                                    alt={map.name}
-                                    fill
-                                    className="object-cover transition-transform group-hover:scale-105"
-                                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-
-                            {/* Content section */}
-                            <div className="p-3 space-y-1">
-                                <h3
-                                    className="text-base font-medium truncate cursor-pointer hover:text-primary"
-                                    onClick={() => handleMapClick(map.id)}
-                                >
-                                    {map.name}
-                                </h3>
-                                <div className="flex flex-col !gap-0.5 text-xs text-muted-foreground">
+                                {map.name}
+                            </h3>
+                            <div className="flex flex-col !gap-0.5 text-xs text-muted-foreground">
                                     <span>Dimensions: {map.dimensions}</span>
-                                </div>
-                                <div className="flex items-center justify-end gap-1 pt-1">
-                                    <Button
-                                        variant="outline"
-                                        className="text-muted-foreground hover:text-primary"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            openEditDialog(map);
-                                        }}
-                                    >
-                                        Edit
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        className="text-destructive hover:text-destructive/90"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setMapToDelete(map);
-                                        }}
-                                    >
-                                        Delete
-                                    </Button>
-                                </div>
                             </div>
-                        </Card>
+                            <div className="flex items-center justify-end gap-1 pt-1">
+                                <Button
+                                    variant="outline"
+                                    className="text-muted-foreground hover:text-primary"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        openEditDialog(map);
+                                    }}
+                                >
+                                    Edit
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="text-destructive hover:text-destructive/90"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setMapToDelete(map);
+                                    }}
+                                >
+                                    Delete
+                                </Button>
+                            </div>
+                        </div>
+                    </Card>
                     ))
                 )}
             </div>
@@ -387,8 +387,8 @@ export default function MapsPage() {
                                 </>
                             ) : (
                                 <>
-                                    <Upload className="mr-2 h-4 w-4" />
-                                    Create
+                            <Upload className="mr-2 h-4 w-4" />
+                            Create
                                 </>
                             )}
                         </Button>

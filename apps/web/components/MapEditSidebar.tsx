@@ -10,8 +10,8 @@ interface MapElement {
     name: string;
     imageUrl: string;
     type: string;
-    width: number;
-    height: number;
+        width: number;
+        height: number;
     static: boolean;
 }
 
@@ -31,24 +31,24 @@ const MapEditSidebar: React.FC<MapEditSidebarProps> = ({
     onElementDragStart,
     onDeleteSelected,
 }) => {
-    const [searchQuery, setSearchQuery] = useState('');
+	const [searchQuery, setSearchQuery] = useState('');
     const [elements, setElements] = useState<MapElement[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        const fetchElements = async () => {
-            try {
+    const fetchElements = async () => {
+        try {
                 setIsLoading(true);
-                const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/elements`);
-                console.log('Elements response:', response.data);
-                const elementsData = response.data.elements || response.data;
-                console.log('Elements data to set:', elementsData);
-                setElements(elementsData);
-            } catch (error) {
-                console.error('Error fetching elements:', error);
-            } finally {
-                setIsLoading(false);
-            }
+            const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/elements`);
+            // console.log('Elements response:', response.data);
+            const elementsData = response.data.elements || response.data;
+            // console.log('Elements data to set:', elementsData);
+            setElements(elementsData);
+        } catch (error) {
+            console.error('Error fetching elements:', error);
+        } finally {
+            setIsLoading(false);
+        }
         };
 
         fetchElements();
@@ -84,8 +84,8 @@ const MapEditSidebar: React.FC<MapEditSidebarProps> = ({
                         type="text"
                         placeholder="Search elements..."
                         className="w-full px-3 py-2 bg-gray-800 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+						value={searchQuery}
+						onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
 
@@ -96,33 +96,33 @@ const MapEditSidebar: React.FC<MapEditSidebarProps> = ({
                             <p className="text-gray-400">Loading elements...</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                             {elements.filter((element) => 
                                 element.name.toLowerCase().includes(searchQuery.toLowerCase())
                             ).map((element) => (
-                                <div
-                                    key={element.id}
-                                    className="bg-gray-800 rounded-lg p-3 cursor-move hover:bg-gray-700 transition-colors"
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, element)}
-                                >
-                                    <div className="relative aspect-square mb-2">
-                                        <Image
-                                            src={element.imageUrl}
-                                            alt={element.name}
-                                            fill
-                                            className="object-contain rounded-md"
-                                        />
-                                    </div>
-                                    <div className="text-sm">
-                                        <p className="font-medium">{element.name}</p>
-                                        <p className="text-gray-400 text-xs">
-                                            {element.width}x{element.height}
-                                        </p>
-                                    </div>
+                            <div
+                                key={element.id}
+                                className="bg-gray-800 rounded-lg p-3 cursor-move hover:bg-gray-700 transition-colors"
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, element)}
+                            >
+                                <div className="relative aspect-square mb-2">
+                                    <Image
+                                        src={element.imageUrl}
+                                        alt={element.name}
+                                        fill
+                                        className="object-contain rounded-md"
+                                    />
                                 </div>
-                            ))}
-                        </div>
+                                <div className="text-sm">
+                                    <p className="font-medium">{element.name}</p>
+                                    <p className="text-gray-400 text-xs">
+                                            {element.width}x{element.height}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                     )}
                 </div>
             </div>

@@ -533,4 +533,142 @@ adminRouter.delete('/delete-map-element', adminMiddleware, async (req: Request, 
     }
 });
 
+adminRouter.get('/maps/get-map-elements', adminMiddleware, async (req: Request, res: Response) => {
+    const mapId = req.query.mapId as string; 
+
+    if (!mapId) {
+        res.status(400).json({ error: 'Map ID is required' });
+        return;
+    }
+
+    try {
+        // First get the map details
+        const map = await prisma.map.findUnique({
+            where: { id: mapId },
+            select: {
+                id: true,
+                name: true,
+                thumbnail: true,
+                width: true,
+                height: true
+            }
+        });
+
+        if (!map) {
+            res.status(404).json({ error: 'Map not found' });
+            return;
+        }
+
+        // Then get all elements for this map
+        const mapElements = await prisma.mapElements.findMany({
+            where: { mapId },
+            select: {
+                elementId: true,
+                x: true,
+                y: true,
+                element: {
+                    select: {
+                        name: true,
+                        imageUrl: true,
+                        width: true,
+                        height: true,
+                        static: true
+                    }
+                }
+            }
+        });
+
+        res.status(200).json({
+            map: {
+                id: map.id,
+                name: map.name,
+                thumbnail: map.thumbnail,
+                dimensions: `${map.width}x${map.height}`,
+                elements: mapElements.map((me: { 
+                    elementId: string; 
+                    x: number | null; 
+                    y: number | null; 
+                    element: {
+                        name: string;
+                        imageUrl: string;
+                        width: number;
+                        height: number;
+                        static: boolean;
+                    }
+                }) => ({
+                    id: me.elementId,
+                    x: me.x ?? 0,
+                    y: me.y ?? 0,
+                    element: me.element
+                }))
+            }
+        });
+        return;
+    } catch (error) {
+        console.error('Error fetching map:', error);
+        res.status(500).json({ error: 'Failed to fetch map' });
+        return;
+    }
+});
+
+adminRouter.put('/update-map-element', adminMiddleware, async (req: Request, res: Response) => {
+    const { mapId, elementId, x, y } = req.body;
+
+    if (!mapId || !elementId || x === undefined || y === undefined) {
+        res.status(400).json({ error: 'Map ID, Element ID, X, and Y coordinates are required' });
+        return;
+    }
+
+    try {
+        // First check if the map element exists
+        const mapElement = await prisma.mapElements.findFirst({
+            where: {
+                mapId,
+                elementId
+            }
+        });
+
+        if (!mapElement) {
+            res.status(404).json({ error: 'Map element not found' });
+            return;
+        }
+
+        // Update the map element position
+        const updatedElement = await prisma.mapElements.update({
+            where: {
+                id: mapElement.id
+            },
+            data: {
+                x,
+                y
+            },
+            include: {
+                element: {
+                    select: {
+                        name: true,
+                        imageUrl: true,
+                        width: true,
+                        height: true,
+                        static: true
+                    }
+                }
+            }
+        });
+
+        res.status(200).json({
+            mapElement: {
+                id: updatedElement.elementId,
+                x: updatedElement.x,
+                y: updatedElement.y,
+                element: updatedElement.element
+            }
+        });
+        return;
+    } catch (error) {
+        console.error('Error updating map element position:', error);
+        res.status(500).json({ error: 'Failed to update map element position' });
+        return;
+    }
+});
+
 export default adminRouter;
