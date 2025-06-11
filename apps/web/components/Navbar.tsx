@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/theme-toggle"
 import axios from "@/lib/axios"
 
 export function Navbar() {
@@ -24,19 +25,15 @@ export function Navbar() {
                     <Link href="/dashboard" className="text-xl font-bold">
                         Metaverse
                     </Link>
-                    {/* <div className="hidden md:flex space-x-6">
-                        <Link href="/dashboard" className="text-sm font-medium hover:text-primary">
-                            Dashboard
-                        </Link>
-                        <Link href="/spaces" className="text-sm font-medium hover:text-primary">
-                            Explore Spaces
-                        </Link>
-                        <Link href="/create" className="text-sm font-medium hover:text-primary">
-                            Create Space
-                        </Link>
-                    </div> */}
+                    
                 </div>
                 <div className="flex items-center space-x-4">
+                    <ThemeToggle />
+                    <div className="hidden md:flex space-x-6">
+                        <Link href="/user/profile" className="text-sm font-medium hover:text-primary">
+                            Profile
+                        </Link>
+                    </div>
                     <Button variant="ghost" onClick={handleSignOut}>
                         Sign Out
                     </Button>
