@@ -106,6 +106,7 @@ export default function MapArenaPage() {
                         onParticipants={handleParticipants}
                 onShareScreen={() => {}}
                         onEditMap={handleEditMap}
+                        isAdmin={true}
             />
                 </div>
             </div>

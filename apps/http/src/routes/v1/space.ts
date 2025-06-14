@@ -48,6 +48,7 @@ spaceRouter.post("/create-space", userAuthMiddleware, async (req:Request, res:Re
 					id: true,
 					width: true,
 					height: true,
+					thumbnail: true,
 					mapElements: {
 						select: {
 							elementId: true,
@@ -72,6 +73,7 @@ spaceRouter.post("/create-space", userAuthMiddleware, async (req:Request, res:Re
 						width: map.width,
 						height: map.height,
 						creatorId: req.userId,
+						thumbnail: map.thumbnail,
 					}
 				});
 

@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import axios from "@/lib/axios"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Navbar } from "@/components/Navbar"
@@ -10,6 +10,14 @@ import { PlusCircle, Clock, Star, Search } from "lucide-react"
 import { CreateSpaceDialog } from "@/components/CreateSpaceDialog"
 import Image from "next/image"
 import { Input } from "@/components/ui/input"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 
 interface Space {
     id: string
@@ -24,6 +32,8 @@ export default function DashboardPage() {
     const [spaces, setSpaces] = useState<Space[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+    const [spaceToDelete, setSpaceToDelete] = useState<string | null>(null)
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -59,6 +69,31 @@ export default function DashboardPage() {
         space.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
+    const handleDeleteClick = (spaceId: string) => {
+        setSpaceToDelete(spaceId)
+        setDeleteDialogOpen(true)
+    }
+
+    const handleDeleteConfirm = async () => {
+        if (!spaceToDelete) return
+
+        try {
+            const response = await axios.delete(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/space/${spaceToDelete}`)
+            if (response.status === 200) {
+                // Refresh the spaces list after deletion
+                fetchSpaces()
+                // Close the dialog
+                setDeleteDialogOpen(false)
+                setSpaceToDelete(null)
+            }
+        } catch (error) {
+            console.error("Error deleting space:", error)
+            // Show error in dialog
+            setDeleteDialogOpen(false)
+            setSpaceToDelete(null)
+        }
+    }
+
     return (
         <div className="min-h-screen bg-background">
             <Navbar />
@@ -85,7 +120,7 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                <Tabs defaultValue="recent" className="w-full">
+                <Tabs defaultValue="recent" className="w-full text-center">
                     <TabsList className="w-full max-w-md">
                         <TabsTrigger value="recent" className="flex-1 gap-2">
                             <Clock className="h-4 w-4" />
@@ -105,32 +140,56 @@ export default function DashboardPage() {
                                 </div>
                             ) : filteredSpaces.length > 0 ? (
                                 filteredSpaces.map((space) => (
-                                    <Card key={space.id} className="group hover:shadow-lg transition-all duration-200">
-                                        <div className="aspect-video bg-muted rounded-t-lg overflow-hidden">
-                                            {space.thumbnail ? (
-                                                <Image
-                                                    src={space.thumbnail}
-                                                    alt={space.name}
-                                                    fill
-                                                    className="object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600" />
-                                            )}
+                                    <Card
+                                        key={space.id}
+                                        className="group overflow-hidden transition-all hover:shadow-lg hover:border-primary/20 p-0"
+                                    >
+                                        {/* Image section - full width */}
+                                        <div
+                                            className="relative aspect-[16/9] w-full overflow-hidden bg-muted/50 transition-transform group-hover:scale-[1.02] cursor-pointer"
+                                            onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
+                                        >
+                                            <Image
+                                                src={space.thumbnail || "/map.jpg"}
+                                                alt={space.name}
+                                                fill
+                                                className="object-cover transition-transform group-hover:scale-105"
+                                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                            />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </div>
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-xl">{space.name}</CardTitle>
-                                            <CardDescription>{space.dimensions}</CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <Button
-                                                variant="outline"
-                                                className="w-full"
+
+                                        {/* Content section */}
+                                        <div className="p-3 space-y-1">
+                                            <h3
+                                                className="text-base font-medium truncate cursor-pointer hover:text-primary text-left"
                                                 onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
                                             >
-                                                Enter Space
-                                            </Button>
-                                        </CardContent>
+                                                {space.name}
+                                            </h3>
+                                            <div className="flex flex-col !gap-0.5 text-xs text-muted-foreground text-left">
+                                                <span>Dimensions: {space.dimensions}</span>
+                                            </div>
+                                            <div className="flex items-center justify-end gap-1 pt-1">
+                                                <Button
+                                                    variant="outline"
+                                                    className="text-muted-foreground hover:text-primary"
+                                                    onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
+                                                >
+                                                    Enter Space
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    className="text-destructive hover:text-destructive/90"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteClick(space.id);
+                                                    }}
+                                                >
+                                                    Delete
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </Card>
                                 ))
                             ) : (
@@ -160,32 +219,56 @@ export default function DashboardPage() {
                                 </div>
                             ) : filteredSpaces.length > 0 ? (
                                 filteredSpaces.map((space) => (
-                                    <Card key={space.id} className="group hover:shadow-lg transition-all duration-200">
-                                        <div className="aspect-video bg-muted rounded-t-lg overflow-hidden">
-                                            {space.thumbnail ? (
-                                                <Image
-                                                    src={space.thumbnail}
-                                                    alt={space.name}
-                                                    fill
-                                                    className="object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600" />
-                                            )}
+                                    <Card
+                                        key={space.id}
+                                        className="group overflow-hidden transition-all hover:shadow-lg hover:border-primary/20 p-0"
+                                    >
+                                        {/* Image section - full width */}
+                                        <div
+                                            className="relative aspect-[16/9] w-full overflow-hidden bg-muted/50 transition-transform group-hover:scale-[1.02] cursor-pointer"
+                                            onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
+                                        >
+                                            <Image
+                                                src={space.thumbnail || "/map.jpg"}
+                                                alt={space.name}
+                                                fill
+                                                className="object-cover transition-transform group-hover:scale-105"
+                                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                            />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </div>
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-xl">{space.name}</CardTitle>
-                                            <CardDescription>{space.dimensions}</CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <Button
-                                                variant="outline"
-                                                className="w-full"
-                                                onClick={() => router.push(`/space/${space.id}`)}
+
+                                        {/* Content section */}
+                                        <div className="p-3 space-y-1">
+                                            <h3
+                                                className="text-base font-medium truncate cursor-pointer hover:text-primary text-left"
+                                                onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
                                             >
-                                                Enter Space
-                                            </Button>
-                                        </CardContent>
+                                                {space.name}
+                                            </h3>
+                                            <div className="flex flex-col !gap-0.5 text-xs text-muted-foreground text-left">
+                                                <span>Dimensions: {space.dimensions}</span>
+                                            </div>
+                                            <div className="flex items-center justify-end gap-1 pt-1">
+                                                <Button
+                                                    variant="outline"
+                                                    className="text-muted-foreground hover:text-primary"
+                                                    onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
+                                                >
+                                                    Enter Space
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    className="text-destructive hover:text-destructive/90"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteClick(space.id);
+                                                    }}
+                                                >
+                                                    Delete
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </Card>
                                 ))
                             ) : (
@@ -214,6 +297,31 @@ export default function DashboardPage() {
                 onClose={() => setIsCreateDialogOpen(false)}
                 onSpaceCreated={fetchSpaces}
             />
+
+            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Space</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete this space? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setDeleteDialogOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleDeleteConfirm}
+                        >
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 } 

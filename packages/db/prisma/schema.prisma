@@ -42,7 +42,7 @@ model spaceElements {
   spaceId   String
   x         Int    // X coordinate of the element in the space
   y         Int    // Y coordinate of the element in the space
-  space     Space   @relation(fields: [spaceId], references: [id])
+  space     Space   @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   element   Element @relation(fields: [elementId], references: [id])
 }
 
