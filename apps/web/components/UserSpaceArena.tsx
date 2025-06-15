@@ -4,6 +4,51 @@ import Phaser from 'phaser';
 import axios from '@/lib/axios';
 import { isAxiosError } from 'axios';
 
+// WebSocket message types
+interface WebSocketMessage {
+    type: 'join' | 'move' | 'space-joined' | 'movement-rejected' | 'movement' | 'user-left' | 'user-join';
+    payload: JoinPayload | MovePayload | SpaceJoinedPayload | MovementPayload | UserLeftPayload | UserJoinPayload;
+}
+
+interface JoinPayload {
+    spaceId: string;
+    token: string;
+}
+
+interface MovePayload {
+    x: number;
+    y: number;
+}
+
+interface SpaceJoinedPayload {
+    spawn: {
+        x: number;
+        y: number;
+    };
+    users: Array<{
+        id: string;
+        x: number;
+        y: number;
+    }>;
+    userId: string;
+}
+
+interface MovementPayload {
+    x: number;
+    y: number;
+    userId: string;
+}
+
+interface UserLeftPayload {
+    userId: string;
+}
+
+interface UserJoinPayload {
+    userId: string;
+    x: number;
+    y: number;
+}
+
 // Define the structure for objects that can be placed on the grid
 interface GridObject {
     x: number;          // X position in grid coordinates
@@ -48,8 +93,13 @@ interface SpaceData {
 
 // Main game scene class that handles all game logic and rendering
 class MainScene extends Phaser.Scene {
+    // WebSocket connection
+    private ws: WebSocket | null = null;
+    private otherPlayers: Map<string, Phaser.GameObjects.Sprite> = new Map();
+    private playerId: string | null = null;
+    
     // Player object that can be moved around the grid
-    private player!: Phaser.GameObjects.Rectangle;
+    private player!: Phaser.GameObjects.Sprite;
     
     // Keyboard input handler for player movement
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -69,7 +119,7 @@ class MainScene extends Phaser.Scene {
     private readonly ZOOM_STEP = 0.01;      // How much to zoom in/out per step
     
     // Movement and interaction settings
-    private readonly MOVE_DELAY = 150;      // Delay between moves in milliseconds
+    private readonly MOVE_DELAY = 250;      // Delay between moves in milliseconds (increased from 150 to 250)
     private lastMoveTime = 0;               // Timestamp of last move
     private backgroundTiles!: Phaser.GameObjects.TileSprite;  // Background grid tiles
     private selectedObject: GridObject | null = null;  // Currently selected object
@@ -84,6 +134,8 @@ class MainScene extends Phaser.Scene {
     private readonly DOUBLE_CLICK_DELAY = 300; // milliseconds
     private isDoubleClicking = false;  // Flag to track double-click state
 
+    private playerAnimations: Map<string, Phaser.Animations.Animation> = new Map();
+
     // Constructor for the scene
     constructor() {
         super({ key: 'MainScene' });  // 'MainScene' is the unique identifier for this scene
@@ -93,6 +145,11 @@ class MainScene extends Phaser.Scene {
     preload() {
         // Load the background tile image that will be used for the grid
         this.load.image('gridTile', '/tile.png');
+        // Load the player sprite sheet
+        this.load.spritesheet('dude', '/dude.png', { 
+            frameWidth: 32, 
+            frameHeight: 48 
+        });
 
         // Wait for all assets to load
         return new Promise<void>((resolve) => {
@@ -106,6 +163,9 @@ class MainScene extends Phaser.Scene {
     // Initialize the game scene
     async create() {
         console.log('Starting create method');
+        
+        // Create animations for the player
+        this.createPlayerAnimations();
         
         // Load the tile image if not already loaded
         if (!this.textures.exists('gridTile')) {
@@ -213,26 +273,26 @@ class MainScene extends Phaser.Scene {
             // Create tiles after space data is loaded
             this.createTiles();
             
-            // Find a safe position to spawn the player after loading all elements
-            console.log('Finding safe spawn position...');
-            const safePosition = this.findSafeSpawnPosition();
-            console.log('Safe spawn position found:', safePosition);
-
-            // Create the player as a green rectangle
-            this.player = this.add.rectangle(
-                safePosition.x,
-                safePosition.y,
-                this.PLAYER_SIZE * 0.8,
-                this.PLAYER_SIZE * 0.8,
-                0x00ff00  // Green color
+            // Create the player as a sprite
+            this.player = this.add.sprite(
+                0,  // Will be set by server
+                0,  // Will be set by server
+                'dude'
             );
-            this.player.setStrokeStyle(2, 0xffffff)  // Add white border
-                .setDepth(2);  // Set depth to 2 for player (above tiles and elements)
+            
+            // Set the scale to match the grid cell size
+            const scale = (this.CELL_SIZE * 1.2) / 48; // 48 is the frame height, increased from 0.8 to 1.2
+            this.player.setScale(scale);
+            
+            // Set the default animation
+            this.player.anims.play('turn');
 
             // Set up the camera bounds and initial position
             this.cameras.main.setBounds(0, 0, this.gridWidth * this.CELL_SIZE, this.gridHeight * this.CELL_SIZE);
             this.cameras.main.setZoom(1);
-            this.cameras.main.centerOn(this.player.x, this.player.y);
+
+            // Connect to WebSocket server
+            this.connectToWebSocket();
         }
 
         // Make all existing sprites interactive
@@ -242,6 +302,173 @@ class MainScene extends Phaser.Scene {
                 obj.sprite.setInteractive();
             }
         });
+    }
+
+    private async connectToWebSocket() {
+        try {
+            // Fetch token from /auth/me endpoint
+            const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/me`);
+            const token = response.data.token;
+            
+            if (!token) {
+                console.error('No authentication token found');
+                return;
+            }
+
+            console.log('Connecting to WebSocket server...');
+            this.ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}`);
+
+            this.ws.onopen = () => {
+                console.log('WebSocket connected, joining space:', this.spaceId);
+                // Join the space
+                this.ws?.send(JSON.stringify({
+                    type: 'join', // client tells server that they want to join the space
+                    payload: {
+                        spaceId: this.spaceId,
+                        token: token
+                    }
+                }));
+            };
+
+            this.ws.onmessage = (event) => {
+                const data = JSON.parse(event.data) as WebSocketMessage;
+                console.log('Received WebSocket message:', data);
+                
+                switch (data.type) {
+                    case 'space-joined': // server tells client that they have joined the space
+                        console.log('Space joined successfully:', data.payload);
+                        const spaceJoinedPayload = data.payload as SpaceJoinedPayload;
+                        this.playerId = spaceJoinedPayload.userId;  // Store the player's ID
+                        this.handleSpaceJoined(spaceJoinedPayload);
+                        break;
+                    case 'user-join': // server tells to all other clients that a new player has joined the space
+                        console.log('New user joined:', data.payload);
+                        const userJoinPayload = data.payload as UserJoinPayload;
+                        if (userJoinPayload.userId !== this.playerId) {
+                            this.handleUserJoined(userJoinPayload);
+                        }
+                        break;
+                    case 'movement': // server tells client that a player has moved
+                        console.log('Player moved:', data.payload);
+                        const movementPayload = data.payload as MovementPayload;
+                        if (movementPayload.userId !== this.playerId) {
+                            this.handlePlayerMovement(movementPayload);
+                        }
+                        break;
+                    case 'user-left': // server tells client that a player has left the space
+                        console.log('User left:', data.payload);
+                        this.handleUserLeft(data.payload as UserLeftPayload);
+                        break;
+                    case 'movement-rejected': // server tells client that a player's movement was rejected
+                        console.log('Movement rejected:', data.payload);
+                        this.handleMovementRejected(data.payload as MovePayload);
+                        break;
+                }
+            };
+
+            this.ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+            this.ws.onclose = () => {
+                console.log('WebSocket connection closed');
+            };
+        } catch (error) {
+            console.error('Error fetching auth token:', error);
+        }
+    }
+
+    private handleSpaceJoined(payload: SpaceJoinedPayload) {
+        const { spawn, users, userId } = payload;
+        
+        // Set player's initial position
+        this.player.x = spawn.x * this.CELL_SIZE + this.CELL_SIZE / 2;
+        this.player.y = spawn.y * this.CELL_SIZE + this.CELL_SIZE / 2;
+        
+        // Store player's ID
+        this.playerId = userId;
+        
+        // Create other players that are already in the space
+        users.forEach(user => {
+            if (user.id !== this.playerId) {
+                this.createOtherPlayer(user.id, user.x, user.y);
+            }
+        });
+    }
+
+    private handleUserJoined(payload: UserJoinPayload) {
+        const { userId, x, y } = payload;
+        
+        // Only create the player if they don't already exist and it's not the current player
+        if (!this.otherPlayers.has(userId) && userId !== this.playerId) {
+            this.createOtherPlayer(userId, x, y);
+        }
+    }
+
+    private createOtherPlayer(id: string, x?: number, y?: number) {
+        const player = this.add.sprite(
+            (x || 0) * this.CELL_SIZE + this.CELL_SIZE / 2,
+            (y || 0) * this.CELL_SIZE + this.CELL_SIZE / 2,
+            'dude'
+        );
+        
+        // Set the scale to match the grid cell size
+        const scale = (this.CELL_SIZE * 1.2) / 48; // 48 is the frame height, increased from 0.8 to 1.2
+        player.setScale(scale);
+        
+        // Set the default animation
+        player.anims.play('turn');
+        
+        this.otherPlayers.set(id, player);
+    }
+
+    private handlePlayerMovement(payload: MovementPayload) {
+        console.log('Player movement:', payload);
+        const { userId, x, y } = payload;
+        const player = this.otherPlayers.get(userId);
+        if (player) {
+            const oldX = player.x;
+            const newX = x * this.CELL_SIZE + this.CELL_SIZE / 2;
+            
+            // Play appropriate animation based on movement direction
+            if (newX < oldX) {
+                if (player.anims.currentAnim?.key !== 'left') {
+                    player.anims.play('left', true);
+                }
+            } else if (newX > oldX) {
+                if (player.anims.currentAnim?.key !== 'right') {
+                    player.anims.play('right', true);
+                }
+            }
+            
+            player.x = newX;
+            player.y = y * this.CELL_SIZE + this.CELL_SIZE / 2;
+            
+            // Play turn animation after movement
+            this.time.delayedCall(150, () => {
+                if (player.anims.currentAnim?.key !== 'turn') {
+                    player.anims.play('turn');
+                }
+            });
+        }
+    }
+
+    private handleUserLeft(payload: UserLeftPayload) {
+        console.log('User left:', payload);
+        const { userId } = payload;
+        const player = this.otherPlayers.get(userId);
+        if (player) {
+            player.destroy();
+            this.otherPlayers.delete(userId);
+        }
+    }
+
+    private handleMovementRejected(payload: MovePayload) {
+        console.log('Movement rejected:', payload);
+        const { x, y } = payload;
+        // Move player back to the valid position
+        this.player.x = x * this.CELL_SIZE + this.CELL_SIZE / 2;
+        this.player.y = y * this.CELL_SIZE + this.CELL_SIZE / 2;
     }
 
     // Create the background tiles
@@ -428,9 +655,38 @@ class MainScene extends Phaser.Scene {
             this.gridHeight * this.CELL_SIZE - this.PLAYER_SIZE / 2
         );
 
+        // Play appropriate animation based on movement direction
+        if (dx < 0) {
+            if (this.player.anims.currentAnim?.key !== 'left') {
+                this.player.anims.play('left', true);
+            }
+        } else if (dx > 0) {
+            if (this.player.anims.currentAnim?.key !== 'right') {
+                this.player.anims.play('right', true);
+            }
+        } else if (dy !== 0) {
+            // When moving vertically, use the last horizontal direction
+            const currentAnim = this.player.anims.currentAnim;
+            if (!currentAnim || currentAnim.key === 'turn') {
+                this.player.anims.play('right', true);
+            }
+        }
+
         // Move player to new position
         this.player.x = newX;
         this.player.y = newY;
+
+        // Send movement update to server
+        if (this.ws?.readyState === WebSocket.OPEN) {
+            console.log('Sending movement update:', { x: newGridX, y: newGridY });
+            this.ws.send(JSON.stringify({
+                type: 'move',
+                payload: {
+                    x: newGridX,
+                    y: newGridY
+                }
+            }));
+        }
 
         // Set player as moving and start following
         this.isPlayerMoving = true;
@@ -439,6 +695,11 @@ class MainScene extends Phaser.Scene {
         // Re-enable movement after delay
         this.time.delayedCall(100, () => {
             this.canMove = true;
+            // Play turn animation when movement stops
+            if (!this.cursors.left.isDown && !this.cursors.right.isDown && 
+                !this.cursors.up.isDown && !this.cursors.down.isDown) {
+                this.player.anims.play('turn');
+            }
         });
     }
 
@@ -694,6 +955,39 @@ class MainScene extends Phaser.Scene {
         if (this.scene.isActive()) {
             this.loadSpaceElements();
         }
+    }
+
+    // Clean up WebSocket connection when scene is destroyed
+    shutdown() {
+        if (this.ws) {
+            this.ws.close();
+        }
+    }
+
+    private createPlayerAnimations() {
+        // Create animations for the player sprite
+        this.anims.create({
+            key: 'left',
+            frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
+            frameRate: 8,  // Reduced from 10 to 8 for smoother animation
+            repeat: -1,
+            yoyo: true  // Add yoyo effect for smoother transitions
+        });
+
+        this.anims.create({
+            key: 'turn',
+            frames: [ { key: 'dude', frame: 4 } ],
+            frameRate: 20,
+            repeat: 0  // Don't repeat the turn animation
+        });
+
+        this.anims.create({
+            key: 'right',
+            frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
+            frameRate: 8,  // Reduced from 10 to 8 for smoother animation
+            repeat: -1,
+            yoyo: true  // Add yoyo effect for smoother transitions
+        });
     }
 }
 

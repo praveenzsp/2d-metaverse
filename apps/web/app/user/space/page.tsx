@@ -60,8 +60,8 @@ export default function SpacePage() {
                 </div>
                 <div className="flex-1 p-4 overflow-y-auto">
                     <p className="text-muted-foreground">Chat coming soon...</p>
+                    </div>
                 </div>
-            </div>
 
             {/* Participants Sidebar */}
             <div
@@ -71,11 +71,11 @@ export default function SpacePage() {
                 <div className="flex items-center justify-between p-4 border-b border-gray-800">
                     <span className="font-bold">Participants</span>
                     <button onClick={() => setIsParticipantsOpen(false)} className="text-gray-400 hover:text-white">✕</button>
-                </div>
+                                    </div>
                 <div className="flex-1 p-4 overflow-y-auto">
                     <p className="text-muted-foreground">Participants coming soon...</p>
-                </div>
-            </div>
+                                    </div>
+                        </div>
         </div>
     )
 } 

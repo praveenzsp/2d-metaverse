@@ -116,7 +116,8 @@ router.get('/auth/me', async (req, res) => {
         res.status(200).json({
             userId: user.id,
             username: user.username,
-            role: user.role
+            role: user.role,
+            token: token
         });
         return;
     } catch (error) {

@@ -167,6 +167,42 @@ spaceRouter.get("/all", userAuthMiddleware, async (req: Request, res: Response)=
 	}
 })
 
+spaceRouter.get("/all-spaces", userAuthMiddleware, async (req: Request, res: Response)=>{
+	try{
+		const spaces = await prisma.space.findMany({
+			select: {
+				id: true,
+				name: true,
+				width: true,
+				height: true,
+				thumbnail: true,
+				creator: {
+					select: {
+						id: true,
+						username: true,
+					}
+				}
+			}
+		})
+
+		res.status(200).json({spaces: spaces.map((space:any)=>({
+			id: space.id,
+			name: space.name,
+			dimensions: `${space.width}x${space.height}`,
+			thumbnail: space.thumbnail,
+			creator: {
+				id: space.creator.id,
+				name: space.creator.username,
+			}
+		}))});
+		return;
+	}
+	catch(error){
+		res.status(400).json({message: "Internal server error"});
+		return;
+	}
+})
+
 spaceRouter.post("/element", userAuthMiddleware, async (req:Request, res:Response)=>{
 	// this route is abt adding the existing element to the space, no need to create a new element
 	const parsedData = AddElementToSpaceSchema.safeParse(req.body);

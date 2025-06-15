@@ -24,22 +24,30 @@ interface Space {
     name: string
     dimensions: string
     thumbnail: string
+    creator: {
+        id: string
+        name: string
+    }
 }
 
 export default function DashboardPage() {
     const router = useRouter()
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-    const [spaces, setSpaces] = useState<Space[]>([])
+    const [userSpaces, setUserSpaces] = useState<Space[]>([])
+    const [allSpaces, setAllSpaces] = useState<Space[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [spaceToDelete, setSpaceToDelete] = useState<string | null>(null)
+    const [userId, setUserId] = useState<string>("")
 
     useEffect(() => {
         const checkAuth = async () => {
             try {
                 const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/me`)
-                if (response.status !== 200) {
+                if (response.status === 200) {
+                    setUserId(response.data.id)
+                } else {
                     router.push("/signin")
                 }
             } catch (error) {
@@ -50,22 +58,36 @@ export default function DashboardPage() {
         checkAuth()
     }, [router])
 
-    const fetchSpaces = async () => {
+    const fetchUserSpaces = async () => {
         try {
             const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/space/all`)
-            setSpaces(response.data.spaces)
+            setUserSpaces(response.data.spaces)
         } catch (error) {
-            console.error("Error fetching spaces:", error)
+            console.error("Error fetching user spaces:", error)
+        }
+    }
+
+    const fetchAllSpaces = async () => {
+        try {
+            const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/space/all-spaces`)
+            setAllSpaces(response.data.spaces)
+        } catch (error) {
+            console.error("Error fetching all spaces:", error)
         } finally {
             setIsLoading(false)
         }
     }
 
     useEffect(() => {
-        fetchSpaces()
+        fetchUserSpaces()
+        fetchAllSpaces()
     }, [])
 
-    const filteredSpaces = spaces.filter(space => 
+    const filteredUserSpaces = userSpaces.filter(space => 
+        space.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
+    const filteredAllSpaces = allSpaces.filter(space => 
         space.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
@@ -81,7 +103,8 @@ export default function DashboardPage() {
             const response = await axios.delete(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/space/${spaceToDelete}`)
             if (response.status === 200) {
                 // Refresh the spaces list after deletion
-                fetchSpaces()
+                fetchUserSpaces()
+                fetchAllSpaces()
                 // Close the dialog
                 setDeleteDialogOpen(false)
                 setSpaceToDelete(null)
@@ -138,8 +161,8 @@ export default function DashboardPage() {
                                 <div className="col-span-full text-center py-12">
                                     <p className="text-muted-foreground">Loading spaces...</p>
                                 </div>
-                            ) : filteredSpaces.length > 0 ? (
-                                filteredSpaces.map((space) => (
+                            ) : filteredAllSpaces.length > 0 ? (
+                                filteredAllSpaces.map((space) => (
                                     <Card
                                         key={space.id}
                                         className="group overflow-hidden transition-all hover:shadow-lg hover:border-primary/20 p-0"
@@ -169,6 +192,7 @@ export default function DashboardPage() {
                                             </h3>
                                             <div className="flex flex-col !gap-0.5 text-xs text-muted-foreground text-left">
                                                 <span>Dimensions: {space.dimensions}</span>
+                                                <span>Created by: {space.creator.name}</span>
                                             </div>
                                             <div className="flex items-center justify-end gap-1 pt-1">
                                                 <Button
@@ -178,16 +202,18 @@ export default function DashboardPage() {
                                                 >
                                                     Enter Space
                                                 </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    className="text-destructive hover:text-destructive/90"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDeleteClick(space.id);
-                                                    }}
-                                                >
-                                                    Delete
-                                                </Button>
+                                                {space.creator.id === userId && (
+                                                    <Button
+                                                        variant="outline"
+                                                        className="text-destructive hover:text-destructive/90"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteClick(space.id);
+                                                        }}
+                                                    >
+                                                        Delete
+                                                    </Button>
+                                                )}
                                             </div>
                                         </div>
                                     </Card>
@@ -196,15 +222,8 @@ export default function DashboardPage() {
                                 <Card className="col-span-full border-dashed">
                                     <CardContent className="flex flex-col items-center justify-center py-12">
                                         <p className="text-muted-foreground text-center">
-                                            {searchQuery ? "No spaces found matching your search" : "No spaces yet"}
+                                            {searchQuery ? "No spaces found matching your search" : "No spaces available"}
                                         </p>
-                                        <Button
-                                            variant="outline"
-                                            className="mt-4"
-                                            onClick={() => setIsCreateDialogOpen(true)}
-                                        >
-                                            Create Your First Space
-                                        </Button>
                                     </CardContent>
                                 </Card>
                             )}
@@ -217,8 +236,8 @@ export default function DashboardPage() {
                                 <div className="col-span-full text-center py-12">
                                     <p className="text-muted-foreground">Loading spaces...</p>
                                 </div>
-                            ) : filteredSpaces.length > 0 ? (
-                                filteredSpaces.map((space) => (
+                            ) : filteredUserSpaces.length > 0 ? (
+                                filteredUserSpaces.map((space) => (
                                     <Card
                                         key={space.id}
                                         className="group overflow-hidden transition-all hover:shadow-lg hover:border-primary/20 p-0"
@@ -275,7 +294,7 @@ export default function DashboardPage() {
                                 <Card className="col-span-full border-dashed">
                                     <CardContent className="flex flex-col items-center justify-center py-12">
                                         <p className="text-muted-foreground text-center">
-                                            {searchQuery ? "No spaces found matching your search" : "You haven&apos;t created any spaces yet"}
+                                            {searchQuery ? "No spaces found matching your search" : "You haven't created any spaces yet"}
                                         </p>
                                         <Button
                                             variant="outline"
@@ -295,7 +314,7 @@ export default function DashboardPage() {
             <CreateSpaceDialog
                 isOpen={isCreateDialogOpen}
                 onClose={() => setIsCreateDialogOpen(false)}
-                onSpaceCreated={fetchSpaces}
+                onSpaceCreated={fetchUserSpaces}
             />
 
             <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -51,13 +51,14 @@ export class User {
                     const token = parsedData.payload.token;
                     
                     // Verify their JWT token
-                    const userId = (jwt.verify(token, JWT_SECRET) as JwtPayload).userId
-                    if (!userId) {
+                    const decodedToken = jwt.verify(token, JWT_SECRET) as JwtPayload;
+                    if (!decodedToken.userId) {
                         this.ws.close()  // Close connection if invalid token
                         return
                     }
                     
-                    this.userId = userId
+                    // Generate a unique connection ID by combining userId with a timestamp
+                    this.userId = `${decodedToken.userId}-${Date.now()}`;
                     
                     // Check if the space exists in the database
                     const space = await prisma.space.findFirst({
@@ -79,27 +80,47 @@ export class User {
                     this.x = Math.floor(Math.random() * space?.width!);
                     this.y = Math.floor(Math.random() * space?.height!);
                     
-                    // Tell them they've joined and where they are
+                    // Get existing users in the space
+                    const existingUsers = RoomManager.getInstance().rooms.get(spaceId)?.filter(x => x.id !== this.id) ?? [];
+                    
+                    // Tell the user that they've joined and where user is
                     this.send({
                         type: "space-joined",
                         payload: {
+                            userId: this.userId,
                             spawn: {
                                 x: this.x,
                                 y: this.y
                             },
-                            users: RoomManager.getInstance().rooms.get(spaceId)?.filter(x => x.id !== this.id)?.map((u) => ({id: u.id})) ?? []
+                            users: existingUsers.map(u => ({
+                                id: u.userId,
+                                x: u.x,
+                                y: u.y
+                            }))
                         }
                     });
                     
                     // Tell everyone else that a new user joined
                     RoomManager.getInstance().broadcast({
-                        type: "user-joined",
+                        type: "user-join",
                         payload: {
                             userId: this.userId,
                             x: this.x,
                             y: this.y
                         }
                     }, this, this.spaceId!);
+
+                    // Send the new user information about all existing users
+                    existingUsers.forEach(user => {
+                        this.send({
+                            type: "user-join",
+                            payload: {
+                                userId: user.userId,
+                                x: user.x,
+                                y: user.y
+                            }
+                        });
+                    });
                     break;
 
                 case "move":
@@ -119,6 +140,7 @@ export class User {
                         RoomManager.getInstance().broadcast({
                             type: "movement",
                             payload: {
+                                userId: this.userId,
                                 x: this.x,
                                 y: this.y
                             }
