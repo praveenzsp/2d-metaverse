@@ -273,20 +273,6 @@ class MainScene extends Phaser.Scene {
             // Create tiles after space data is loaded
             this.createTiles();
             
-            // Create the player as a sprite
-            this.player = this.add.sprite(
-                0,  // Will be set by server
-                0,  // Will be set by server
-                'dude'
-            );
-            
-            // Set the scale to match the grid cell size
-            const scale = (this.CELL_SIZE * 1.2) / 48; // 48 is the frame height, increased from 0.8 to 1.2
-            this.player.setScale(scale);
-            
-            // Set the default animation
-            this.player.anims.play('turn');
-
             // Set up the camera bounds and initial position
             this.cameras.main.setBounds(0, 0, this.gridWidth * this.CELL_SIZE, this.gridHeight * this.CELL_SIZE);
             this.cameras.main.setZoom(1);
@@ -379,11 +365,29 @@ class MainScene extends Phaser.Scene {
     }
 
     private handleSpaceJoined(payload: SpaceJoinedPayload) {
+        if (!this.scene.isActive()) return;
+
         const { spawn, users, userId } = payload;
         
-        // Set player's initial position
-        this.player.x = spawn.x * this.CELL_SIZE + this.CELL_SIZE / 2;
-        this.player.y = spawn.y * this.CELL_SIZE + this.CELL_SIZE / 2;
+        // Create the player if it doesn't exist
+        if (!this.player) {
+            this.player = this.add.sprite(
+                spawn.x * this.CELL_SIZE + this.CELL_SIZE / 2,
+                spawn.y * this.CELL_SIZE + this.CELL_SIZE / 2,
+                'dude'
+            );
+            
+            // Set the scale to match the grid cell size
+            const scale = (this.CELL_SIZE * 1.2) / 48; // 48 is the frame height
+            this.player.setScale(scale);
+            
+            // Set the default animation
+            this.player.anims.play('turn');
+        } else {
+            // Update existing player position
+            this.player.x = spawn.x * this.CELL_SIZE + this.CELL_SIZE / 2;
+            this.player.y = spawn.y * this.CELL_SIZE + this.CELL_SIZE / 2;
+        }
         
         // Store player's ID
         this.playerId = userId;
@@ -394,18 +398,23 @@ class MainScene extends Phaser.Scene {
                 this.createOtherPlayer(user.id, user.x, user.y);
             }
         });
+
+        // Set up camera to follow player
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
     }
 
     private handleUserJoined(payload: UserJoinPayload) {
         const { userId, x, y } = payload;
         
         // Only create the player if they don't already exist and it's not the current player
-        if (!this.otherPlayers.has(userId) && userId !== this.playerId) {
+        if (!this.otherPlayers.has(userId) && userId !== this.playerId && this.scene.isActive()) {
             this.createOtherPlayer(userId, x, y);
         }
     }
 
     private createOtherPlayer(id: string, x?: number, y?: number) {
+        if (!this.scene.isActive()) return;
+
         const player = this.add.sprite(
             (x || 0) * this.CELL_SIZE + this.CELL_SIZE / 2,
             (y || 0) * this.CELL_SIZE + this.CELL_SIZE / 2,
@@ -413,7 +422,7 @@ class MainScene extends Phaser.Scene {
         );
         
         // Set the scale to match the grid cell size
-        const scale = (this.CELL_SIZE * 1.2) / 48; // 48 is the frame height, increased from 0.8 to 1.2
+        const scale = (this.CELL_SIZE * 1.2) / 48; // 48 is the frame height
         player.setScale(scale);
         
         // Set the default animation
@@ -423,6 +432,8 @@ class MainScene extends Phaser.Scene {
     }
 
     private handlePlayerMovement(payload: MovementPayload) {
+        if (!this.scene.isActive()) return;
+
         console.log('Player movement:', payload);
         const { userId, x, y } = payload;
         const player = this.otherPlayers.get(userId);
@@ -446,7 +457,8 @@ class MainScene extends Phaser.Scene {
             
             // Play turn animation after movement
             this.time.delayedCall(150, () => {
-                if (player.anims.currentAnim?.key !== 'turn') {
+                // Only play turn animation if the player hasn't moved again
+                if (Math.abs(player.x - newX) < 1 && Math.abs(player.y - (y * this.CELL_SIZE + this.CELL_SIZE / 2)) < 1) {
                     player.anims.play('turn');
                 }
             });
@@ -454,6 +466,8 @@ class MainScene extends Phaser.Scene {
     }
 
     private handleUserLeft(payload: UserLeftPayload) {
+        if (!this.scene.isActive()) return;
+
         console.log('User left:', payload);
         const { userId } = payload;
         const player = this.otherPlayers.get(userId);
@@ -629,8 +643,56 @@ class MainScene extends Phaser.Scene {
         });
     }
 
+    // Main game update loop
+    update(time: number) {
+        if (this.isMovingAlongPath) {
+            this.moveAlongPath();
+            return;
+        }
+
+        if (!this.canMove || !this.player) return;
+
+        // Check if enough time has passed since last move
+        if (time - this.lastMoveTime < this.MOVE_DELAY) return;
+
+        let moved = false;
+
+        // Handle keyboard input for player movement
+        if (this.cursors.left.isDown) {
+            this.movePlayer(-this.CELL_SIZE, 0);
+            moved = true;
+        } else if (this.cursors.right.isDown) {
+            this.movePlayer(this.CELL_SIZE, 0);
+            moved = true;
+        } else if (this.cursors.up.isDown) {
+            this.movePlayer(0, -this.CELL_SIZE);
+            moved = true;
+        } else if (this.cursors.down.isDown) {
+            this.movePlayer(0, this.CELL_SIZE);
+            moved = true;
+        } else {
+            // If no keys are pressed, ensure we're in the turn animation
+            if (this.player && this.player.anims && this.player.anims.currentAnim?.key !== 'turn') {
+                this.player.anims.play('turn');
+            }
+        }
+
+        // Update last move time if player moved
+        if (moved) {
+            this.lastMoveTime = time;
+        }
+
+        // Update background tile position to follow camera
+        if (this.backgroundTiles) {
+            this.backgroundTiles.tilePositionX = this.cameras.main.scrollX;
+            this.backgroundTiles.tilePositionY = this.cameras.main.scrollY;
+        }
+    }
+
     // Move the player in the specified direction
     private movePlayer(dx: number, dy: number) {
+        if (!this.player) return;
+        
         this.canMove = false;
         
         // Calculate new position in grid coordinates
@@ -657,18 +719,18 @@ class MainScene extends Phaser.Scene {
 
         // Play appropriate animation based on movement direction
         if (dx < 0) {
-            if (this.player.anims.currentAnim?.key !== 'left') {
+            if (this.player.anims && this.player.anims.currentAnim?.key !== 'left') {
                 this.player.anims.play('left', true);
             }
         } else if (dx > 0) {
-            if (this.player.anims.currentAnim?.key !== 'right') {
+            if (this.player.anims && this.player.anims.currentAnim?.key !== 'right') {
                 this.player.anims.play('right', true);
             }
         } else if (dy !== 0) {
             // When moving vertically, use the last horizontal direction
-            const currentAnim = this.player.anims.currentAnim;
+            const currentAnim = this.player.anims?.currentAnim;
             if (!currentAnim || currentAnim.key === 'turn') {
-                this.player.anims.play('right', true);
+                this.player.anims?.play('right', true);
             }
         }
 
@@ -695,8 +757,9 @@ class MainScene extends Phaser.Scene {
         // Re-enable movement after delay
         this.time.delayedCall(100, () => {
             this.canMove = true;
-            // Play turn animation when movement stops
-            if (!this.cursors.left.isDown && !this.cursors.right.isDown && 
+            // Only play turn animation if no movement keys are pressed
+            if (this.player && this.player.anims && 
+                !this.cursors.left.isDown && !this.cursors.right.isDown && 
                 !this.cursors.up.isDown && !this.cursors.down.isDown) {
                 this.player.anims.play('turn');
             }
@@ -731,47 +794,6 @@ class MainScene extends Phaser.Scene {
         }
 
         graphics.strokePath();
-    }
-
-    // Main game update loop
-    update(time: number) {
-        if (this.isMovingAlongPath) {
-            this.moveAlongPath();
-            return;
-        }
-
-        if (!this.canMove) return;
-
-        // Check if enough time has passed since last move
-        if (time - this.lastMoveTime < this.MOVE_DELAY) return;
-
-        let moved = false;
-
-        // Handle keyboard input for player movement
-        if (this.cursors.left.isDown) {
-            this.movePlayer(-this.CELL_SIZE, 0);
-            moved = true;
-        } else if (this.cursors.right.isDown) {
-            this.movePlayer(this.CELL_SIZE, 0);
-            moved = true;
-        } else if (this.cursors.up.isDown) {
-            this.movePlayer(0, -this.CELL_SIZE);
-            moved = true;
-        } else if (this.cursors.down.isDown) {
-            this.movePlayer(0, this.CELL_SIZE);
-            moved = true;
-        }
-
-        // Update last move time if player moved
-        if (moved) {
-            this.lastMoveTime = time;
-        }
-
-        // Update background tile position to follow camera
-        if (this.backgroundTiles) {
-            this.backgroundTiles.tilePositionX = this.cameras.main.scrollX;
-            this.backgroundTiles.tilePositionY = this.cameras.main.scrollY;
-        }
     }
 
     // Find a safe position to spawn the player where there are no obstacles

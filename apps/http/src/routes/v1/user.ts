@@ -5,6 +5,54 @@ import prisma from "@repo/db/client";
 
 const userRouter=Router();
 
+// Get current user's profile data
+userRouter.get("/profile", userAuthMiddleware, async (req: Request, res: Response) => {
+	try {
+		const user = await prisma.user.findUnique({
+			where: {
+				id: req.userId
+			},
+			select: {
+				id: true,
+				username: true,
+				avatar: {
+					select: {
+						id: true,
+						imageUrl: true
+					}
+				}
+			}
+		});
+
+		if (!user) {
+			res.status(404).json({ message: "User not found" });
+			return;
+		}
+
+		res.status(200).json(user);
+	} catch (error) {
+		console.error('Error fetching user profile:', error);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
+
+// Get all available avatars
+userRouter.get("/avatars", userAuthMiddleware, async (req: Request, res: Response) => {
+	try {
+		const avatars = await prisma.avatar.findMany({
+			select: {
+				id: true,
+				imageUrl: true,
+				name: true
+			}
+		});
+
+		res.status(200).json(avatars);
+	} catch (error) {
+		console.error('Error fetching avatars:', error);
+		res.status(500).json({ message: "Internal server error" });
+	}
+});
 
 userRouter.post("/metadata", userAuthMiddleware, async (req: Request, res: Response)=>{
 	const parsedData = UpdateMetadataSchema.safeParse(req.body);
@@ -86,6 +134,5 @@ userRouter.get("/metadata/bulk", userAuthMiddleware, async(req: Request, res: Re
 		return;
 	}
 })
-
 
 export default userRouter;
