@@ -333,7 +333,7 @@ export default function MapsPage() {
                                     value={mapWidth}
                                     onChange={(e) => setMapWidth(e.target.value)}
                                     placeholder="Enter width"
-                                    min="150"
+                                    min="70"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -344,7 +344,7 @@ export default function MapsPage() {
                                     value={mapHeight}
                                     onChange={(e) => setMapHeight(e.target.value)}
                                     placeholder="Enter height"
-                                    min="100"
+                                    min="50"
                                 />
                             </div>
                         </div>

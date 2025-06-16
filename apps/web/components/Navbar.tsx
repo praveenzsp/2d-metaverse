@@ -55,7 +55,7 @@ export function Navbar() {
                     </div>
                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button variant="ghost">Sign Out</Button>
+                            <Button variant="ghost" className="hover:text-red-500">Sign Out</Button>
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>

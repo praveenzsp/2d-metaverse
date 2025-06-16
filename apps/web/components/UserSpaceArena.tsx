@@ -114,7 +114,7 @@ class MainScene extends Phaser.Scene {
     private isPlayerMoving = false;         // Flag to track if player is moving
     
     // Camera zoom settings
-    private readonly MIN_ZOOM = 0.5;        // Minimum zoom level
+    private readonly MIN_ZOOM = 0.3;        // Minimum zoom level
     private readonly MAX_ZOOM = 1.3;        // Maximum zoom level
     private readonly ZOOM_STEP = 0.01;      // How much to zoom in/out per step
     
@@ -201,12 +201,19 @@ class MainScene extends Phaser.Scene {
             // Set new zoom level
             this.cameras.main.setZoom(newZoom);
             
-            // Adjust camera position to zoom towards mouse
-            const newMouseWorldX = this.cameras.main.scrollX + pointer.x / newZoom;
-            const newMouseWorldY = this.cameras.main.scrollY + pointer.y / newZoom;
-            
-            this.cameras.main.scrollX += (mouseWorldX - newMouseWorldX);
-            this.cameras.main.scrollY += (mouseWorldY - newMouseWorldY);
+            // Center the camera on the map when zoomed out
+            if (newZoom <= this.MIN_ZOOM) {
+                const centerX = (this.gridWidth * this.CELL_SIZE) / 2;
+                const centerY = (this.gridHeight * this.CELL_SIZE) / 2;
+                this.cameras.main.centerOn(centerX, centerY);
+            } else {
+                // Adjust camera position to zoom towards mouse
+                const newMouseWorldX = this.cameras.main.scrollX + pointer.x / newZoom;
+                const newMouseWorldY = this.cameras.main.scrollY + pointer.y / newZoom;
+                
+                this.cameras.main.scrollX += (mouseWorldX - newMouseWorldX);
+                this.cameras.main.scrollY += (mouseWorldY - newMouseWorldY);
+            }
         });
 
         // Add camera drag functionality
