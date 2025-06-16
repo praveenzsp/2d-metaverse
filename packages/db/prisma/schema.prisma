@@ -78,7 +78,7 @@ model MapElements {
   elementId String
   x         Int?    // Optional X coordinate of the element in the map
   y         Int?    // Optional Y coordinate of the element in the map
-  map       Map     @relation(fields: [mapId], references: [id])
+  map       Map     @relation(fields: [mapId], references: [id], onDelete: Cascade)
   element   Element @relation(fields: [elementId], references: [id])
 }
 
