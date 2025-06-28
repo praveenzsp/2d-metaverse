@@ -170,7 +170,8 @@ export default function DashboardPage() {
                                         {/* Image section - full width */}
                                         <div
                                             className="relative aspect-[16/9] w-full overflow-hidden bg-muted/50 transition-transform group-hover:scale-[1.02] cursor-pointer"
-                                            onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
+                                            
+                                            onClick={() => router.push(`/user/join-preview?spaceId=${space.id}`)}
                                         >
                                             <Image
                                                 src={space.thumbnail || "/map.jpg"}
@@ -186,7 +187,8 @@ export default function DashboardPage() {
                                         <div className="p-3 space-y-1">
                                             <h3
                                                 className="text-base font-medium truncate cursor-pointer hover:text-primary text-left"
-                                                onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
+                                                
+                                                onClick={() => router.push(`/user/join-preview?spaceId=${space.id}`)}
                                             >
                                                 {space.name}
                                             </h3>
@@ -198,7 +200,8 @@ export default function DashboardPage() {
                                                 <Button
                                                     variant="outline"
                                                     className="text-muted-foreground hover:text-primary"
-                                                    onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
+                                                    
+                                                    onClick={() => router.push(`/user/join-preview?spaceId=${space.id}`)}
                                                 >
                                                     Enter Space
                                                 </Button>
@@ -245,7 +248,8 @@ export default function DashboardPage() {
                                         {/* Image section - full width */}
                                         <div
                                             className="relative aspect-[16/9] w-full overflow-hidden bg-muted/50 transition-transform group-hover:scale-[1.02] cursor-pointer"
-                                            onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
+                                           
+                                            onClick={() => router.push(`/user/join-preview?spaceId=${space.id}`)}
                                         >
                                             <Image
                                                 src={space.thumbnail || "/map.jpg"}
@@ -261,7 +265,8 @@ export default function DashboardPage() {
                                         <div className="p-3 space-y-1">
                                             <h3
                                                 className="text-base font-medium truncate cursor-pointer hover:text-primary text-left"
-                                                onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
+                                                
+                                                onClick={() => router.push(`/user/join-preview?spaceId=${space.id}`)}
                                             >
                                                 {space.name}
                                             </h3>
@@ -272,7 +277,8 @@ export default function DashboardPage() {
                                                 <Button
                                                     variant="outline"
                                                     className="text-muted-foreground hover:text-primary"
-                                                    onClick={() => router.push(`/user/space?spaceId=${space.id}`)}
+                                                    
+                                                    onClick={() => router.push(`/user/join-preview?spaceId=${space.id}`)}
                                                 >
                                                     Enter Space
                                                 </Button>
