@@ -138,6 +138,7 @@ spaceRouter.delete("/:spaceId", userAuthMiddleware, async (req: Request, res: Re
 	}
 })
 
+// this route is abt getting all the spaces that the user has created
 spaceRouter.get("/all", userAuthMiddleware, async (req: Request, res: Response)=>{
 	try{
 		const spaces = await prisma.space.findMany({
@@ -167,6 +168,7 @@ spaceRouter.get("/all", userAuthMiddleware, async (req: Request, res: Response)=
 	}
 })
 
+// this route is abt getting all the spaces in the database
 spaceRouter.get("/all-spaces", userAuthMiddleware, async (req: Request, res: Response)=>{
 	try{
 		const spaces = await prisma.space.findMany({
@@ -332,6 +334,7 @@ spaceRouter.get("/:spaceId", userAuthMiddleware, async (req:Request, res:Respons
 		});
 
 		const response = {
+			name: space.name,
 			dimensions: `${space.width}x${space.height}`,
 			elements: spaceElements.map((spaceElement:any) => ({
 				id: spaceElement.id,
