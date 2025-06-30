@@ -113,6 +113,7 @@ adminRouter.get('/users', adminMiddleware, async (req: Request, res: Response) =
             select: {
                 id: true,
                 username: true,
+                email: true,
                 role: true,
                 avatarId: true,
                 avatar: {
@@ -128,6 +129,7 @@ adminRouter.get('/users', adminMiddleware, async (req: Request, res: Response) =
             users: users.map((user) => ({
                 id: user.id,
                 username: user.username,
+                email: user.email,
                 role: user.role,
                 avatar: user.avatar
                     ? {
@@ -230,6 +232,7 @@ adminRouter.put('/update-role', adminMiddleware, async (req: Request, res: Respo
             select: {
                 id: true,
                 username: true,
+                email: true,
                 role: true,
                 avatarId: true,
                 avatar: {
@@ -245,6 +248,7 @@ adminRouter.put('/update-role', adminMiddleware, async (req: Request, res: Respo
             user: {
                 id: user.id,
                 username: user.username,
+                email: user.email,
                 role: user.role,
                 avatar: user.avatar
                     ? {

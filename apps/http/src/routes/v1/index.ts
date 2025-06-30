@@ -21,6 +21,7 @@ router.post('/signup', async (req, res) => {
         const hashedPassword = await bcrypt.hash(parsedData.data.password, 10);
         const user = await client.user.create({
             data: {
+                email: parsedData.data.email,
                 username: parsedData.data.username,
                 password: hashedPassword,
                 role: parsedData.data.type === 'admin' ? 'Admin' : 'User',
@@ -45,7 +46,7 @@ router.post('/signin', async (req, res) => {
     try {
         const user = await client.user.findUnique({
             where: {
-                username: parsedData.data.username,
+                email: parsedData.data.email,
             },
         });
 
@@ -103,6 +104,7 @@ router.get('/auth/me', async (req, res) => {
             select: {
                 id: true,
                 username: true,
+                email: true,
                 role: true,
                 // Add other non-sensitive fields you want to return
             }
@@ -116,6 +118,7 @@ router.get('/auth/me', async (req, res) => {
         res.status(200).json({
             userId: user.id,
             username: user.username,
+            email: user.email,
             role: user.role,
             token: token
         });

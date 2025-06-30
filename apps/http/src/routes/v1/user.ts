@@ -15,6 +15,7 @@ userRouter.get("/profile", userAuthMiddleware, async (req: Request, res: Respons
 			select: {
 				id: true,
 				username: true,
+				email: true,
 				avatar: {
 					select: {
 						id: true,
