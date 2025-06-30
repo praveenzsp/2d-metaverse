@@ -90,7 +90,19 @@ export default function useMediaDevices(videoRef: React.RefObject<HTMLVideoEleme
 			try {
 				if (!isMounted) return;
 				
-				const userStream = await getUserStream({
+				// If both audio and video are disabled, clear the stream and return
+				if (!isVideoEnabled && !isAudioEnabled) {
+					if (stream) {
+						stream.getTracks().forEach(track => track.stop());
+						setStream(null);
+					}
+					if (videoRef.current) {
+						videoRef.current.srcObject = null;
+					}
+					return;
+				}
+				
+				const constraints = {
 					video: isVideoEnabled ? {
 						deviceId: selectedVideoDevice?.deviceId ? { exact: selectedVideoDevice.deviceId } : undefined,
 						facingMode: 'user',
@@ -103,7 +115,9 @@ export default function useMediaDevices(videoRef: React.RefObject<HTMLVideoEleme
 						noiseSuppression: true,
 						autoGainControl: true,
 					} : false,
-				});
+				};
+				
+				const userStream = await getUserStream(constraints);
 				
 				if (!isMounted) {
 					// Clean up stream if component unmounted during async operation
@@ -111,8 +125,25 @@ export default function useMediaDevices(videoRef: React.RefObject<HTMLVideoEleme
 					return;
 				}
 				
+				// Ensure audio tracks are enabled if audio is supposed to be enabled
+				if (isAudioEnabled) {
+					const audioTracks = userStream.getAudioTracks();
+					audioTracks.forEach(track => {
+						track.enabled = true;
+					});
+				}
+				
+				// Ensure video tracks are enabled if video is supposed to be enabled
+				if (isVideoEnabled) {
+					const videoTracks = userStream.getVideoTracks();
+					videoTracks.forEach(track => {
+						track.enabled = true;
+					});
+				}
+				
 				setStream(userStream);
 				
+				// Always connect the stream to the video element for audio output
 				if (videoRef.current && isMounted) {
 					videoRef.current.srcObject = userStream;
 					try {
@@ -182,60 +213,33 @@ export default function useMediaDevices(videoRef: React.RefObject<HTMLVideoEleme
 
 	// Handle video toggle using track.enabled instead of track removal
 	const handleVideoToggle = useCallback(async () => {
-		if (!stream) return;
-		const videoTrack = stream.getVideoTracks()[0];
-		if (videoTrack) {
-			videoTrack.enabled = !videoTrack.enabled;
-			setIsVideoEnabled(videoTrack.enabled);
-		} else {
-			// If no video track exists, create one
-			try {
-				const newVideoStream = await getUserStream({
-					video: {
-						deviceId: selectedVideoDevice?.deviceId ? { exact: selectedVideoDevice.deviceId } : undefined,
-						facingMode: 'user',
-						width: { ideal: 1280 },
-						height: { ideal: 720 },
-					}
-				});
-				
-				const newVideoTrack = newVideoStream.getVideoTracks()[0];
-				stream.addTrack(newVideoTrack);
-				setIsVideoEnabled(true);
-			} catch (error) {
-				console.error('Failed to add video track:', error);
+		const newVideoEnabled = !isVideoEnabled;
+		setIsVideoEnabled(newVideoEnabled);
+		
+		// If stream exists, just toggle the video track
+		if (stream) {
+			const videoTrack = stream.getVideoTracks()[0];
+			if (videoTrack) {
+				videoTrack.enabled = newVideoEnabled;
 			}
 		}
-	}, [stream, getUserStream, selectedVideoDevice]);
+		// The useEffect will handle creating/updating the stream as needed
+	}, [stream, isVideoEnabled]);
 
 	// Handle audio toggle using track.enabled instead of track removal
 	const handleAudioToggle = useCallback(async () => {
-		if (!stream) return;
+		const newAudioEnabled = !isAudioEnabled;
+		setIsAudioEnabled(newAudioEnabled);
 		
-		const audioTrack = stream.getAudioTracks()[0];
-		if (audioTrack) {
-			audioTrack.enabled = !audioTrack.enabled;
-			setIsAudioEnabled(audioTrack.enabled);
-		} else {
-			// If no audio track exists, create one
-			try {
-				const newAudioStream = await getUserStream({
-					audio: {
-						deviceId: selectedAudioDevice?.deviceId ? { exact: selectedAudioDevice.deviceId } : undefined,
-						echoCancellation: true,
-						noiseSuppression: true,
-						autoGainControl: true,
-					}
-				});
-				
-				const newAudioTrack = newAudioStream.getAudioTracks()[0];
-				stream.addTrack(newAudioTrack);
-				setIsAudioEnabled(true);
-			} catch (error) {
-				console.error('Failed to add audio track:', error);
+		// If stream exists, just toggle the audio track
+		if (stream) {
+			const audioTrack = stream.getAudioTracks()[0];
+			if (audioTrack) {
+				audioTrack.enabled = newAudioEnabled;
 			}
 		}
-	}, [stream, getUserStream, selectedAudioDevice]);
+		// The useEffect will handle creating/updating the stream as needed
+	}, [stream, isAudioEnabled]);
 
 	// Handle video device change with proper track replacement
 	const handleVideoDeviceChange = useCallback(async (deviceId: string) => {
