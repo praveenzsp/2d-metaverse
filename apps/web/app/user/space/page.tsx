@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation"
 import dynamic from 'next/dynamic'
 import ArenaBottombar from '@/components/ArenaBottombar'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 const UserSpaceArena = dynamic(() => import('@/components/UserSpaceArena'), { ssr: false })
 
@@ -14,10 +14,19 @@ export default function SpacePage() {
     const spaceId = searchParams.get("spaceId")
     const [isChatOpen, setIsChatOpen] = useState(false)
     const [isParticipantsOpen, setIsParticipantsOpen] = useState(false)
+    const arenaRef = useRef<{ handleDeleteSelected?: () => void; cleanup?: () => Promise<void> }>(null)
 
     if (!spaceId) return null
 
-    const handleLeave = () => {
+    const handleLeave = async () => {
+        // Clean up the scene before navigating away
+        if (arenaRef.current?.cleanup) {
+            await arenaRef.current.cleanup()
+        }
+        
+        // Add a small delay to ensure all cleanup is complete
+        await new Promise(resolve => setTimeout(resolve, 200))
+        
         router.push('/user/dashboard')
     }
 
@@ -34,13 +43,9 @@ export default function SpacePage() {
 
     return (
         <div className="h-screen w-screen relative">
-            <UserSpaceArena spaceId={spaceId} />
+            <UserSpaceArena ref={arenaRef} spaceId={spaceId} />
             <ArenaBottombar
                 userName="User"
-                audioOn={true}
-                videoOn={true}
-                onToggleAudio={() => {}}
-                onToggleVideo={() => {}}
                 onChat={handleChat}
                 onLeave={handleLeave}
                 onParticipants={handleParticipants}

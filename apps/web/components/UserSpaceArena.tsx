@@ -6,8 +6,8 @@ import { isAxiosError } from 'axios';
 
 // WebSocket message types
 interface WebSocketMessage {
-    type: 'join' | 'move' | 'space-joined' | 'movement-rejected' | 'movement' | 'user-left' | 'user-join';
-    payload: JoinPayload | MovePayload | SpaceJoinedPayload | MovementPayload | UserLeftPayload | UserJoinPayload;
+    type: 'join' | 'move' | 'leave' | 'space-joined' | 'movement-rejected' | 'movement' | 'user-left' | 'user-join';
+    payload: JoinPayload | MovePayload | LeavePayload | SpaceJoinedPayload | MovementPayload | UserLeftPayload | UserJoinPayload;
 }
 
 interface JoinPayload {
@@ -18,6 +18,10 @@ interface JoinPayload {
 interface MovePayload {
     x: number;
     y: number;
+}
+
+interface LeavePayload {
+    spaceId: string;
 }
 
 interface SpaceJoinedPayload {
@@ -986,11 +990,90 @@ class MainScene extends Phaser.Scene {
         }
     }
 
+    // Send leave message to server
+    private sendLeaveMessage() {
+        if (this.ws?.readyState === WebSocket.OPEN && this.spaceId) {
+            console.log('Sending leave message for space:', this.spaceId);
+            this.ws.send(JSON.stringify({
+                type: 'leave',
+                payload: {
+                    spaceId: this.spaceId
+                }
+            }));
+        }
+    }
+
     // Clean up WebSocket connection when scene is destroyed
     shutdown() {
+        console.log('Shutting down MainScene...');
+        
+        // Send leave message to server before closing connection
+        this.sendLeaveMessage();
+        
+        // Close WebSocket connection
         if (this.ws) {
+            console.log('Closing WebSocket connection...');
             this.ws.close();
+            this.ws = null;
         }
+        
+        // Clear all game objects and references
+        if (this.player) {
+            this.player.destroy();
+        }
+        
+        // Clear other players
+        this.otherPlayers.forEach(player => {
+            if (player && player.active) {
+                player.destroy();
+            }
+        });
+        this.otherPlayers.clear();
+        
+        // Clear grid objects
+        this.gridObjects.forEach(obj => {
+            if (obj.sprite && obj.sprite.active) {
+                obj.sprite.destroy();
+            }
+        });
+        this.gridObjects = [];
+        
+        // Clear background tiles
+        if (this.backgroundTiles) {
+            this.backgroundTiles.destroy();
+        }
+        
+        // Clear input handlers
+        if (this.input) {
+            this.input.off('wheel');
+            this.input.off('pointerdown');
+            this.input.off('pointermove');
+            this.input.off('pointerup');
+            this.input.off('pointerout');
+        }
+        
+        // Clear timers and animations
+        if (this.time) {
+            this.time.removeAllEvents();
+        }
+        
+        // Clear camera
+        if (this.cameras && this.cameras.main) {
+            this.cameras.main.stopFollow();
+        }
+        
+        // Clear player ID
+        this.playerId = null;
+        
+        // Reset state flags
+        this.canMove = true;
+        this.isPlayerMoving = false;
+        this.isMovingAlongPath = false;
+        this.isDragging = false;
+        this.selectedObject = null;
+        this.path = [];
+        
+        console.log('MainScene shutdown complete');
     }
 
     private createPlayerAnimations() {
@@ -1021,16 +1104,37 @@ class MainScene extends Phaser.Scene {
 }
 
 // React component that wraps the Phaser game
-const UserSpaceArena = forwardRef<{ handleDeleteSelected?: () => void }, { spaceId: string }>((props, ref) => {
+const UserSpaceArena = forwardRef<{ handleDeleteSelected?: () => void; cleanup?: () => Promise<void> }, { spaceId: string }>((props, ref) => {
     const { spaceId } = props;
     // Reference to the Phaser game instance
     const gameRef = useRef<Phaser.Game | null>(null);
     // Reference to the main scene
     const sceneRef = useRef<MainScene | null>(null);
 
+    // Expose cleanup method through ref
+    useImperativeHandle(ref, () => ({
+        cleanup: async () => {
+            // Call scene shutdown if it exists
+            if (sceneRef.current) {
+                sceneRef.current.shutdown();
+                // Add a small delay to ensure WebSocket messages are sent
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // Destroy the game instance
+            if (gameRef.current) {
+                gameRef.current.destroy(true);
+                gameRef.current = null;
+                sceneRef.current = null;
+            }
+        }
+    }), []);
+
     // Initialize the game when component mounts
     useEffect(() => {
         if (gameRef.current) return;
+
+        console.log('Creating new Phaser game instance');
 
         // Game configuration
         const config: Phaser.Types.Core.GameConfig = {
@@ -1060,13 +1164,17 @@ const UserSpaceArena = forwardRef<{ handleDeleteSelected?: () => void }, { space
 
         // Cleanup when component unmounts
         return () => {
+            console.log('Cleaning up Phaser game instance');
+            if (sceneRef.current) {
+                sceneRef.current.shutdown();
+            }
             if (gameRef.current) {
                 gameRef.current.destroy(true);
                 gameRef.current = null;
                 sceneRef.current = null;
             }
         };
-    }, [props.spaceId]);
+    }, []); // Empty dependency array - only run once on mount
 
     // Update spaceId when it changes
     useEffect(() => {
