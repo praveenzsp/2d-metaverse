@@ -4,7 +4,8 @@ import { useSearchParams } from "next/navigation"
 import dynamic from 'next/dynamic'
 import ArenaBottombar from '@/components/ArenaBottombar'
 import { useRouter } from 'next/navigation'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import axios from "@/lib/axios"
 
 const UserSpaceArena = dynamic(() => import('@/components/UserSpaceArena'), { ssr: false })
 
@@ -13,9 +14,20 @@ export default function SpacePage() {
     const router = useRouter()
     const spaceId = searchParams.get("spaceId")
     const [isChatOpen, setIsChatOpen] = useState(false)
+    const [username, setUsername] = useState('User')
     const [isParticipantsOpen, setIsParticipantsOpen] = useState(false)
     const arenaRef = useRef<{ handleDeleteSelected?: () => void; cleanup?: () => Promise<void> }>(null)
 
+
+
+    useEffect(() => {
+        const fetchUsername = async () => {
+            const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/me`);
+            const username = response.data.username;
+            setUsername(username)
+        }
+        fetchUsername();
+    }, [])
     if (!spaceId) return null
 
     const handleLeave = async () => {
@@ -45,7 +57,7 @@ export default function SpacePage() {
         <div className="h-screen w-screen relative">
             <UserSpaceArena ref={arenaRef} spaceId={spaceId} />
             <ArenaBottombar
-                userName="User"
+                userName={username}
                 onChat={handleChat}
                 onLeave={handleLeave}
                 onParticipants={handleParticipants}

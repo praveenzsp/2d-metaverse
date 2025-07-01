@@ -76,7 +76,7 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
                         autoPlay 
                     />
                     {!isVideoEnabled && (
-                        <div className="w-full min-h-16 bg-gray-900 rounded-md flex items-center justify-center">
+                        <div className="w-full min-h-16 bg-black rounded-md flex items-center justify-center">
                             <User className="text-gray-400" />
                         </div>
                     )}
