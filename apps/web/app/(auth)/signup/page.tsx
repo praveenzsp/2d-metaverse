@@ -12,6 +12,7 @@ import { Eye, EyeOff } from 'lucide-react';
 
 export default function SignUpPage() {
     const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -23,7 +24,8 @@ export default function SignUpPage() {
         try {
             // First signup
             const signupResponse = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/signup`, {
-                username: email,
+                email: email,
+                username: username,
                 password: password,
                 type: 'user', // Default to user type
             });
@@ -33,7 +35,7 @@ export default function SignUpPage() {
                 const signinResponse = await axios.post(
                     `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/signin`,
                     {
-                        username: email,
+                        email: email,
                         password: password,
                     }
                 );
@@ -75,6 +77,18 @@ export default function SignUpPage() {
                                 placeholder="you@example.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="username">Username</Label>
+                            <Input
+                                id="username"
+                                type="text"
+                                placeholder="your_username"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                maxLength={10}
                                 required
                             />
                         </div>

@@ -23,7 +23,7 @@ export default function SignInPage() {
 		
 		try {
 			const response = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/signin`, {
-				username: email,
+				email: email,
 				password: password,
 			});
 

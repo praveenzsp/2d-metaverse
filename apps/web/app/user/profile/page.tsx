@@ -19,6 +19,7 @@ import { Loader2 } from 'lucide-react';
 interface UserProfile {
     id: string;
     username: string;
+    email: string;
     avatar: {
         id: string;
         imageUrl: string;
@@ -106,6 +107,10 @@ function ProfilePage() {
                                 <div className="text-center">
                                     <h3 className="text-sm font-medium">Username</h3>
                                     <p className="text-lg">{profile?.username}</p>
+                                </div>
+                                <div className="text-center">
+                                    <h3 className="text-sm font-medium">Email</h3>
+                                    <p className="text-lg">{profile?.email}</p>
                                 </div>
                             </div>
                             <div className="flex flex-col items-center space-y-2">
