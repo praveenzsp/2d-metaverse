@@ -64,7 +64,7 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
     }, []);
 
     return (
-        <div className="absolute bottom-0 left-0 w-full min-h-18 bg-gray-900 text-white flex items-center justify-between px-40 z-50 shadow-lg min-h-md">
+        <div className="w-full min-h-18 bg-gray-900 text-white flex items-center justify-between px-40 z-50 shadow-lg min-h-md">
             {/* Left section */}
             <div className="flex items-center space-x-4">
                 <span className="font-semibold text-lg">{userName}</span>

@@ -1147,6 +1147,10 @@ const UserSpaceArena = forwardRef<{ handleDeleteSelected?: () => void; cleanup?:
             scale: {
                 mode: Phaser.Scale.RESIZE,
                 autoCenter: Phaser.Scale.CENTER_BOTH
+            },
+            audio: {
+                disableWebAudio: true,
+                noAudio: true
             }
         };
 
@@ -1187,7 +1191,7 @@ const UserSpaceArena = forwardRef<{ handleDeleteSelected?: () => void; cleanup?:
     return (
         <div 
             id="game-container" 
-            className="w-full h-full"
+            className="w-full h-full overflow-hidden"
         />
     );
 });
