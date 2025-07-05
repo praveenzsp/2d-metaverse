@@ -48,7 +48,7 @@ export function TestimonialsSection() {
                                 <div className="flex flex-col h-full">
                                     <div className={`w-12 h-1 rounded-full bg-gradient-to-r ${testimonial.gradient} mb-6`} />
                                     <p className="text-lg mb-6 flex-grow">
-                                        "{testimonial.content}"
+                                        &quot;{testimonial.content}&quot;
                                     </p>
                                     <div className="flex items-center gap-4">
                                         <Avatar className={`ring-2 ring-offset-2 ring-offset-background ring-${testimonial.gradient.split('-')[1]}-500`}>
