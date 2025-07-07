@@ -19,7 +19,7 @@ interface CurrentCall {
     callId: string;
 }
 
-export const useWebrtc = (roomId: string, userId: string) => {
+export const useWebRTC = (roomId: string, userId: string) => {
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [isConnected, setIsConnected] = useState(false);

@@ -1,13 +1,31 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState, useCallback } from 'react';
 import Phaser from 'phaser';
 import axios from '@/lib/axios';
 import { isAxiosError } from 'axios';
+import { useWebRTC } from '@/hooks/useWebRTC';
 
 // WebSocket message types
 interface WebSocketMessage {
-    type: 'join' | 'move' | 'leave' | 'space-joined' | 'movement-rejected' | 'movement' | 'user-left' | 'user-join';
-    payload: JoinPayload | MovePayload | LeavePayload | SpaceJoinedPayload | MovementPayload | UserLeftPayload | UserJoinPayload;
+    type:
+        | 'join'
+        | 'move'
+        | 'leave'
+        | 'space-joined'
+        | 'movement-rejected'
+        | 'movement'
+        | 'user-left'
+        | 'user-join'
+        | 'proximity-users';
+    payload:
+        | JoinPayload
+        | MovePayload
+        | LeavePayload
+        | SpaceJoinedPayload
+        | MovementPayload
+        | UserLeftPayload
+        | UserJoinPayload
+        | ProximityUsersPayload;
 }
 
 interface JoinPayload {
@@ -55,23 +73,12 @@ interface UserJoinPayload {
 
 // Define the structure for objects that can be placed on the grid
 interface GridObject {
-    x: number;          // X position in grid coordinates
-    y: number;          // Y position in grid coordinates
-    width: number;      // Width of the object in grid cells
-    height: number;     // Height of the object in grid cells
-    type: string;       // Type of the object (e.g., 'tree', 'rock', etc.)
-    sprite: Phaser.GameObjects.GameObject;  // The visual representation of the object
-}
-
-// Define the structure for elements that can be dragged from the sidebar
-interface SpaceElement {
-    id: string;
-    name: string;
-    imageUrl: string;
-    type: string;
-    width: number;
-    height: number;
-    static: boolean;
+    x: number; // X position in grid coordinates
+    y: number; // Y position in grid coordinates
+    width: number; // Width of the object in grid cells
+    height: number; // Height of the object in grid cells
+    type: string; // Type of the object (e.g., 'tree', 'rock', etc.)
+    sprite: Phaser.GameObjects.GameObject; // The visual representation of the object
 }
 
 // Define the structure for space elements from the API
@@ -88,11 +95,14 @@ interface SpaceElementData {
     };
 }
 
-interface SpaceData {
-    id: string;
-    name: string;
-    dimensions: string;
-    elements: SpaceElementData[];
+interface ProximityUser {
+    userId: string;
+    x: number;
+    y: number;
+}
+
+interface ProximityUsersPayload {
+    users: ProximityUser[];
 }
 
 // Main game scene class that handles all game logic and rendering
@@ -101,58 +111,51 @@ class MainScene extends Phaser.Scene {
     private ws: WebSocket | null = null;
     private otherPlayers: Map<string, Phaser.GameObjects.Sprite> = new Map();
     private playerId: string | null = null;
-    
+
     // Player object that can be moved around the grid
     private player!: Phaser.GameObjects.Sprite;
-    
+
     // Keyboard input handler for player movement
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-    
-    // Constants for grid and game settings
-    private readonly CELL_SIZE = 50;        // Size of each grid cell in pixels
-    private gridWidth = 0;                  // Width of the grid in cells
-    private gridHeight = 0;                 // Height of the grid in cells
-    private readonly PLAYER_SIZE = 50;      // Size of the player in pixels
-    private canMove = true;                 // Flag to control player movement
-    private gridObjects: GridObject[] = []; // Array to store all objects on the grid
-    private isPlayerMoving = false;         // Flag to track if player is moving
-    
-    // Camera zoom settings
-    private readonly MIN_ZOOM = 0.3;        // Minimum zoom level
-    private readonly MAX_ZOOM = 1.3;        // Maximum zoom level
-    private readonly ZOOM_STEP = 0.01;      // How much to zoom in/out per step
-    
-    // Movement and interaction settings
-    private readonly MOVE_DELAY = 250;      // Delay between moves in milliseconds (increased from 150 to 250)
-    private lastMoveTime = 0;               // Timestamp of last move
-    private backgroundTiles!: Phaser.GameObjects.TileSprite;  // Background grid tiles
-    private selectedObject: GridObject | null = null;  // Currently selected object
-    private isDragging = false;             // Flag for drag operation
-    private dragStartX = 0;                 // Starting X position of drag
-    private dragStartY = 0;                 // Starting Y position of drag
-    private spaceId: string = '';
-    private path: { x: number, y: number }[] = [];  // Store the current path
-    private isMovingAlongPath = false;  // Flag to track if player is moving along path
-    private readonly MOVE_SPEED = 200;  // Pixels per second
-    private lastClickTime = 0;
-    private readonly DOUBLE_CLICK_DELAY = 300; // milliseconds
-    private isDoubleClicking = false;  // Flag to track double-click state
 
-    private playerAnimations: Map<string, Phaser.Animations.Animation> = new Map();
+    // Constants for grid and game settings
+    private readonly CELL_SIZE = 50;
+    private gridWidth = 0;
+    private gridHeight = 0;
+    private readonly PLAYER_SIZE = 50;
+    private canMove = true;
+    private gridObjects: GridObject[] = [];
+    private isPlayerMoving = false;
+
+    // Camera zoom settings
+    private readonly MIN_ZOOM = 0.3;
+    private readonly MAX_ZOOM = 1.3;
+    private readonly ZOOM_STEP = 0.01;
+
+    // Movement and interaction settings
+    private readonly MOVE_DELAY = 250; // Delay between moves in milliseconds (increased from 150 to 250)
+    private lastMoveTime = 0; // Timestamp of last move
+    private backgroundTiles!: Phaser.GameObjects.TileSprite; // Background grid tiles
+    private selectedObject: GridObject | null = null; // Currently selected object
+    private spaceId: string = '';
+    private path: { x: number; y: number }[] = []; // Store the current path
+    private isMovingAlongPath = false; // Flag to track if player is moving along path
+    private readonly MOVE_SPEED = 200; // Pixels per second
+    private proximityUsers: ProximityUser[] = [];
 
     // Constructor for the scene
     constructor() {
-        super({ key: 'MainScene' });  // 'MainScene' is the unique identifier for this scene
+        super({ key: 'MainScene' }); // 'MainScene' is the unique identifier for this scene
     }
 
     // Load all game assets (images, sprites, etc.)
     preload() {
         // Load the background tile image that will be used for the grid
-        this.load.image('gridTile', '/tile.png');
+        this.load.image('gridTile', '/tile1.png');
         // Load the player sprite sheet
-        this.load.spritesheet('dude', '/dude.png', { 
-            frameWidth: 32, 
-            frameHeight: 48 
+        this.load.spritesheet('dude', '/dude.png', {
+            frameWidth: 32,
+            frameHeight: 48,
         });
 
         // Wait for all assets to load
@@ -167,14 +170,14 @@ class MainScene extends Phaser.Scene {
     // Initialize the game scene
     async create() {
         console.log('Starting create method');
-        
+
         // Create animations for the player
         this.createPlayerAnimations();
-        
+
         // Load the tile image if not already loaded
         if (!this.textures.exists('gridTile')) {
             console.log('Loading tile image');
-            this.load.image('gridTile', '/tile.png');
+            this.load.image('gridTile', '/tile1.png');
             await new Promise<void>((resolve) => {
                 this.load.once('complete', () => {
                     console.log('Tile image loaded successfully');
@@ -193,32 +196,40 @@ class MainScene extends Phaser.Scene {
         this.cursors = this.input.keyboard!.createCursorKeys();
 
         // Add mouse wheel zoom functionality
-        this.input.on('wheel', (pointer: Phaser.Input.Pointer, gameObjects: Phaser.GameObjects.GameObject[], deltaX: number, deltaY: number) => {
-            const currentZoom = this.cameras.main.zoom;
-            const zoomDelta = deltaY > 0 ? -this.ZOOM_STEP : this.ZOOM_STEP;
-            const newZoom = Phaser.Math.Clamp(currentZoom + zoomDelta, this.MIN_ZOOM, this.MAX_ZOOM);
-            
-            // Get mouse position in world coordinates
-            const mouseWorldX = this.cameras.main.scrollX + pointer.x / currentZoom;
-            const mouseWorldY = this.cameras.main.scrollY + pointer.y / currentZoom;
-            
-            // Set new zoom level
-            this.cameras.main.setZoom(newZoom);
-            
-            // Center the camera on the map when zoomed out
-            if (newZoom <= this.MIN_ZOOM) {
-                const centerX = (this.gridWidth * this.CELL_SIZE) / 2;
-                const centerY = (this.gridHeight * this.CELL_SIZE) / 2;
-                this.cameras.main.centerOn(centerX, centerY);
-            } else {
-                // Adjust camera position to zoom towards mouse
-                const newMouseWorldX = this.cameras.main.scrollX + pointer.x / newZoom;
-                const newMouseWorldY = this.cameras.main.scrollY + pointer.y / newZoom;
-                
-                this.cameras.main.scrollX += (mouseWorldX - newMouseWorldX);
-                this.cameras.main.scrollY += (mouseWorldY - newMouseWorldY);
-            }
-        });
+        this.input.on(
+            'wheel',
+            (
+                pointer: Phaser.Input.Pointer,
+                gameObjects: Phaser.GameObjects.GameObject[],
+                deltaX: number,
+                deltaY: number,
+            ) => {
+                const currentZoom = this.cameras.main.zoom;
+                const zoomDelta = deltaY > 0 ? -this.ZOOM_STEP : this.ZOOM_STEP;
+                const newZoom = Phaser.Math.Clamp(currentZoom + zoomDelta, this.MIN_ZOOM, this.MAX_ZOOM);
+
+                // Get mouse position in world coordinates
+                const mouseWorldX = this.cameras.main.scrollX + pointer.x / currentZoom;
+                const mouseWorldY = this.cameras.main.scrollY + pointer.y / currentZoom;
+
+                // Set new zoom level
+                this.cameras.main.setZoom(newZoom);
+
+                // Center the camera on the map when zoomed out
+                if (newZoom <= this.MIN_ZOOM) {
+                    const centerX = (this.gridWidth * this.CELL_SIZE) / 2;
+                    const centerY = (this.gridHeight * this.CELL_SIZE) / 2;
+                    this.cameras.main.centerOn(centerX, centerY);
+                } else {
+                    // Adjust camera position to zoom towards mouse
+                    const newMouseWorldX = this.cameras.main.scrollX + pointer.x / newZoom;
+                    const newMouseWorldY = this.cameras.main.scrollY + pointer.y / newZoom;
+
+                    this.cameras.main.scrollX += mouseWorldX - newMouseWorldX;
+                    this.cameras.main.scrollY += mouseWorldY - newMouseWorldY;
+                }
+            },
+        );
 
         // Add camera drag functionality
         let isDragging = false;
@@ -233,7 +244,7 @@ class MainScene extends Phaser.Scene {
                 lastPointerX = pointer.x;
                 lastPointerY = pointer.y;
                 dragStartTime = Date.now();
-                
+
                 // Stop following player while dragging
                 this.cameras.main.stopFollow();
             }
@@ -244,11 +255,11 @@ class MainScene extends Phaser.Scene {
                 // Calculate the movement delta
                 const dx = (lastPointerX - pointer.x) / this.cameras.main.zoom;
                 const dy = (lastPointerY - pointer.y) / this.cameras.main.zoom;
-                
+
                 // Update camera position
                 this.cameras.main.scrollX += dx;
                 this.cameras.main.scrollY += dy;
-                
+
                 // Update last position
                 lastPointerX = pointer.x;
                 lastPointerY = pointer.y;
@@ -259,7 +270,7 @@ class MainScene extends Phaser.Scene {
             // Only stop dragging if it was a drag operation (not a click)
             if (isDragging && Date.now() - dragStartTime > 100) {
                 isDragging = false;
-                
+
                 // Only resume following if player is moving
                 if (this.isPlayerMoving) {
                     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
@@ -270,7 +281,7 @@ class MainScene extends Phaser.Scene {
         this.input.on('pointerout', () => {
             if (isDragging) {
                 isDragging = false;
-                
+
                 // Only resume following if player is moving
                 if (this.isPlayerMoving) {
                     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
@@ -283,7 +294,7 @@ class MainScene extends Phaser.Scene {
             await this.loadSpaceElements();
             // Create tiles after space data is loaded
             this.createTiles();
-            
+
             // Set up the camera bounds and initial position
             this.cameras.main.setBounds(0, 0, this.gridWidth * this.CELL_SIZE, this.gridHeight * this.CELL_SIZE);
             this.cameras.main.setZoom(1);
@@ -293,9 +304,8 @@ class MainScene extends Phaser.Scene {
         }
 
         // Make all existing sprites interactive
-        this.gridObjects.forEach(obj => {
-            if (obj.sprite instanceof Phaser.GameObjects.Image || 
-                obj.sprite instanceof Phaser.GameObjects.Rectangle) {
+        this.gridObjects.forEach((obj) => {
+            if (obj.sprite instanceof Phaser.GameObjects.Image || obj.sprite instanceof Phaser.GameObjects.Rectangle) {
                 obj.sprite.setInteractive();
             }
         });
@@ -306,7 +316,7 @@ class MainScene extends Phaser.Scene {
             // Fetch token from /auth/me endpoint
             const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/me`);
             const token = response.data.token;
-            
+
             if (!token) {
                 console.error('No authentication token found');
                 return;
@@ -318,24 +328,26 @@ class MainScene extends Phaser.Scene {
             this.ws.onopen = () => {
                 console.log('WebSocket connected, joining space:', this.spaceId);
                 // Join the space
-                this.ws?.send(JSON.stringify({
-                    type: 'join', // client tells server that they want to join the space
-                    payload: {
-                        spaceId: this.spaceId,
-                        token: token
-                    }
-                }));
+                this.ws?.send(
+                    JSON.stringify({
+                        type: 'join', // client tells server that they want to join the space
+                        payload: {
+                            spaceId: this.spaceId,
+                            token: token,
+                        },
+                    }),
+                );
             };
 
             this.ws.onmessage = (event) => {
                 const data = JSON.parse(event.data) as WebSocketMessage;
                 console.log('Received WebSocket message:', data);
-                
+
                 switch (data.type) {
                     case 'space-joined': // server tells client that they have joined the space
                         console.log('Space joined successfully:', data.payload);
                         const spaceJoinedPayload = data.payload as SpaceJoinedPayload;
-                        this.playerId = spaceJoinedPayload.userId;  // Store the player's ID
+                        this.playerId = spaceJoinedPayload.userId; // Store the player's ID
                         this.handleSpaceJoined(spaceJoinedPayload);
                         break;
                     case 'user-join': // server tells to all other clients that a new player has joined the space
@@ -360,6 +372,10 @@ class MainScene extends Phaser.Scene {
                         console.log('Movement rejected:', data.payload);
                         this.handleMovementRejected(data.payload as MovePayload);
                         break;
+                    case 'proximity-users': // server tells client about all users in proximity
+                        // console.log('Proximity users:', data.payload);
+                        this.handleProximityUsers(data.payload as ProximityUsersPayload);
+                        break;
                 }
             };
 
@@ -375,23 +391,30 @@ class MainScene extends Phaser.Scene {
         }
     }
 
+    private handleProximityUsers(payload: ProximityUsersPayload) {
+        // console.log('Proximity users:', payload.users);
+        this.proximityUsers = payload.users;
+        // Emit the event to the React component
+        this.events.emit('proximity-users', payload.users);
+    }
+
     private handleSpaceJoined(payload: SpaceJoinedPayload) {
         if (!this.scene.isActive()) return;
 
         const { spawn, users, userId } = payload;
-        
+
         // Create the player if it doesn't exist
         if (!this.player) {
             this.player = this.add.sprite(
                 spawn.x * this.CELL_SIZE + this.CELL_SIZE / 2,
                 spawn.y * this.CELL_SIZE + this.CELL_SIZE / 2,
-                'dude'
+                'dude',
             );
-            
+
             // Set the scale to match the grid cell size
             const scale = (this.CELL_SIZE * 1.2) / 48; // 48 is the frame height
             this.player.setScale(scale);
-            
+
             // Set the default animation
             this.player.anims.play('turn');
         } else {
@@ -399,12 +422,12 @@ class MainScene extends Phaser.Scene {
             this.player.x = spawn.x * this.CELL_SIZE + this.CELL_SIZE / 2;
             this.player.y = spawn.y * this.CELL_SIZE + this.CELL_SIZE / 2;
         }
-        
+
         // Store player's ID
         this.playerId = userId;
-        
+
         // Create other players that are already in the space
-        users.forEach(user => {
+        users.forEach((user) => {
             if (user.id !== this.playerId) {
                 this.createOtherPlayer(user.id, user.x, user.y);
             }
@@ -416,7 +439,7 @@ class MainScene extends Phaser.Scene {
 
     private handleUserJoined(payload: UserJoinPayload) {
         const { userId, x, y } = payload;
-        
+
         // Only create the player if they don't already exist and it's not the current player
         if (!this.otherPlayers.has(userId) && userId !== this.playerId && this.scene.isActive()) {
             this.createOtherPlayer(userId, x, y);
@@ -429,16 +452,16 @@ class MainScene extends Phaser.Scene {
         const player = this.add.sprite(
             (x || 0) * this.CELL_SIZE + this.CELL_SIZE / 2,
             (y || 0) * this.CELL_SIZE + this.CELL_SIZE / 2,
-            'dude'
+            'dude',
         );
-        
+
         // Set the scale to match the grid cell size
         const scale = (this.CELL_SIZE * 1.2) / 48; // 48 is the frame height
         player.setScale(scale);
-        
+
         // Set the default animation
         player.anims.play('turn');
-        
+
         this.otherPlayers.set(id, player);
     }
 
@@ -451,7 +474,7 @@ class MainScene extends Phaser.Scene {
         if (player) {
             const oldX = player.x;
             const newX = x * this.CELL_SIZE + this.CELL_SIZE / 2;
-            
+
             // Play appropriate animation based on movement direction
             if (newX < oldX) {
                 if (player.anims.currentAnim?.key !== 'left') {
@@ -462,14 +485,17 @@ class MainScene extends Phaser.Scene {
                     player.anims.play('right', true);
                 }
             }
-            
+
             player.x = newX;
             player.y = y * this.CELL_SIZE + this.CELL_SIZE / 2;
-            
+
             // Play turn animation after movement
             this.time.delayedCall(150, () => {
                 // Only play turn animation if the player hasn't moved again
-                if (Math.abs(player.x - newX) < 1 && Math.abs(player.y - (y * this.CELL_SIZE + this.CELL_SIZE / 2)) < 1) {
+                if (
+                    Math.abs(player.x - newX) < 1 &&
+                    Math.abs(player.y - (y * this.CELL_SIZE + this.CELL_SIZE / 2)) < 1
+                ) {
                     player.anims.play('turn');
                 }
             });
@@ -499,7 +525,7 @@ class MainScene extends Phaser.Scene {
     // Create the background tiles
     private createTiles() {
         console.log('Creating tiles with dimensions:', this.gridWidth, this.gridHeight);
-        
+
         // Destroy existing tiles if they exist
         if (this.backgroundTiles) {
             this.backgroundTiles.destroy();
@@ -535,20 +561,20 @@ class MainScene extends Phaser.Scene {
 
             const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/space/${this.spaceId}`;
             const response = await axios.get(url);
-            
+
             if (!response.data) {
                 console.error('No space data found');
                 return;
             }
 
             const space = response.data;
-            
+
             // Set grid dimensions from space data
             const [width, height] = space.dimensions.split('x').map(Number);
             this.gridWidth = width;
             this.gridHeight = height;
             console.log('Set grid dimensions:', this.gridWidth, this.gridHeight);
-            
+
             if (space && space.elements && space.elements.length > 0) {
                 // Load each element's image first
                 const loadPromises = space.elements.map(async (element: SpaceElementData) => {
@@ -565,10 +591,10 @@ class MainScene extends Phaser.Scene {
                         return Promise.resolve(null);
                     }
                 });
-                
+
                 // Wait for all images to load
                 await Promise.all(loadPromises);
-                
+
                 // Add elements to the grid
                 space.elements.forEach((element: SpaceElementData) => {
                     this.addObjectToGrid(
@@ -577,7 +603,7 @@ class MainScene extends Phaser.Scene {
                         `element_${element.id}`,
                         0xffffff,
                         element.element.width,
-                        element.element.height
+                        element.element.height,
                     );
                 });
             }
@@ -591,7 +617,14 @@ class MainScene extends Phaser.Scene {
     }
 
     // Add a new object to the grid at specified coordinates
-    private addObjectToGrid(gridX: number, gridY: number, type: string, color: number, width: number = 1, height: number = 1) {
+    private addObjectToGrid(
+        gridX: number,
+        gridY: number,
+        type: string,
+        color: number,
+        width: number = 1,
+        height: number = 1,
+    ) {
         try {
             // Convert grid coordinates to pixel coordinates
             const x = gridX * this.CELL_SIZE + (width * this.CELL_SIZE) / 2;
@@ -601,19 +634,16 @@ class MainScene extends Phaser.Scene {
 
             // Check if the type is an image key (starts with 'element_')
             if (type.startsWith('element_')) {
-                sprite = this.add.image(x, y, type)
+                sprite = this.add
+                    .image(x, y, type)
                     .setDisplaySize(width * this.CELL_SIZE, height * this.CELL_SIZE)
                     .setOrigin(0.5)
-                    .setDepth(1);  // Set depth to 1 for elements (above tiles, below player)
+                    .setDepth(1); // Set depth to 1 for elements (above tiles, below player)
             } else {
                 // Create a default rectangle for unknown types
-                sprite = this.add.rectangle(
-                    x,
-                    y,
-                    this.CELL_SIZE * width * 0.8,
-                    this.CELL_SIZE * height * 0.8,
-                    color
-                ).setDepth(1);  // Set depth to 1 for elements
+                sprite = this.add
+                    .rectangle(x, y, this.CELL_SIZE * width * 0.8, this.CELL_SIZE * height * 0.8, color)
+                    .setDepth(1); // Set depth to 1 for elements
             }
 
             // Create a grid object to store the object's data
@@ -623,7 +653,7 @@ class MainScene extends Phaser.Scene {
                 width,
                 height,
                 type,
-                sprite
+                sprite,
             };
 
             // Add the object to the grid objects array
@@ -635,22 +665,16 @@ class MainScene extends Phaser.Scene {
 
     // Helper method to find an object at specific grid coordinates
     getObjectAt(gridX: number, gridY: number): GridObject | undefined {
-        return this.gridObjects.find(obj => 
-            gridX >= obj.x && 
-            gridX < obj.x + obj.width && 
-            gridY >= obj.y && 
-            gridY < obj.y + obj.height
+        return this.gridObjects.find(
+            (obj) => gridX >= obj.x && gridX < obj.x + obj.width && gridY >= obj.y && gridY < obj.y + obj.height,
         );
     }
 
     // Helper method to check if a grid position is occupied
     isPositionOccupied(gridX: number, gridY: number, excludeObject?: GridObject): boolean {
-        return this.gridObjects.some(obj => {
+        return this.gridObjects.some((obj) => {
             if (excludeObject && obj === excludeObject) return false;
-            return gridX >= obj.x && 
-                   gridX < obj.x + obj.width && 
-                   gridY >= obj.y && 
-                   gridY < obj.y + obj.height;
+            return gridX >= obj.x && gridX < obj.x + obj.width && gridY >= obj.y && gridY < obj.y + obj.height;
         });
     }
 
@@ -703,9 +727,9 @@ class MainScene extends Phaser.Scene {
     // Move the player in the specified direction
     private movePlayer(dx: number, dy: number) {
         if (!this.player) return;
-        
+
         this.canMove = false;
-        
+
         // Calculate new position in grid coordinates
         const newGridX = Math.floor((this.player.x + dx) / this.CELL_SIZE);
         const newGridY = Math.floor((this.player.y + dy) / this.CELL_SIZE);
@@ -720,12 +744,12 @@ class MainScene extends Phaser.Scene {
         const newX = Phaser.Math.Clamp(
             this.player.x + dx,
             this.PLAYER_SIZE / 2,
-            this.gridWidth * this.CELL_SIZE - this.PLAYER_SIZE / 2
+            this.gridWidth * this.CELL_SIZE - this.PLAYER_SIZE / 2,
         );
         const newY = Phaser.Math.Clamp(
             this.player.y + dy,
             this.PLAYER_SIZE / 2,
-            this.gridHeight * this.CELL_SIZE - this.PLAYER_SIZE / 2
+            this.gridHeight * this.CELL_SIZE - this.PLAYER_SIZE / 2,
         );
 
         // Play appropriate animation based on movement direction
@@ -752,13 +776,15 @@ class MainScene extends Phaser.Scene {
         // Send movement update to server
         if (this.ws?.readyState === WebSocket.OPEN) {
             console.log('Sending movement update:', { x: newGridX, y: newGridY });
-            this.ws.send(JSON.stringify({
-                type: 'move',
-                payload: {
-                    x: newGridX,
-                    y: newGridY
-                }
-            }));
+            this.ws.send(
+                JSON.stringify({
+                    type: 'move',
+                    payload: {
+                        x: newGridX,
+                        y: newGridY,
+                    },
+                }),
+            );
         }
 
         // Set player as moving and start following
@@ -769,9 +795,14 @@ class MainScene extends Phaser.Scene {
         this.time.delayedCall(100, () => {
             this.canMove = true;
             // Only play turn animation if no movement keys are pressed
-            if (this.player && this.player.anims && 
-                !this.cursors.left.isDown && !this.cursors.right.isDown && 
-                !this.cursors.up.isDown && !this.cursors.down.isDown) {
+            if (
+                this.player &&
+                this.player.anims &&
+                !this.cursors.left.isDown &&
+                !this.cursors.right.isDown &&
+                !this.cursors.up.isDown &&
+                !this.cursors.down.isDown
+            ) {
                 this.player.anims.play('turn');
             }
         });
@@ -780,8 +811,8 @@ class MainScene extends Phaser.Scene {
     // Create the grid lines
     private createGrid() {
         const graphics = this.add.graphics();
-        graphics.setDepth(3);  // Set depth to 3 for grid lines (above everything)
-        
+        graphics.setDepth(3); // Set depth to 3 for grid lines (above everything)
+
         // Draw minor grid lines (thinner, more frequent)
         graphics.lineStyle(1, 0xffffff, 0.05);
         for (let x = 0; x <= this.gridWidth * this.CELL_SIZE; x += this.CELL_SIZE) {
@@ -807,179 +838,39 @@ class MainScene extends Phaser.Scene {
         graphics.strokePath();
     }
 
-    // Find a safe position to spawn the player where there are no obstacles
-    private findSafeSpawnPosition(): { x: number, y: number } {
-        console.log('Finding safe spawn position with grid dimensions:', this.gridWidth, this.gridHeight);
-        console.log('Current grid objects:', this.gridObjects.length);
-        
-        // Create an array of all possible positions
-        const possiblePositions: { x: number, y: number }[] = [];
-        
-        // Add all grid positions to the array
-        for (let x = 0; x < this.gridWidth; x++) {
-            for (let y = 0; y < this.gridHeight; y++) {
-                // Check if this position is safe (no obstacles)
-                const isSafe = !this.gridObjects.some(obj => 
-                    x >= obj.x && x < obj.x + obj.width &&
-                    y >= obj.y && y < obj.y + obj.height
-                );
-                
-                if (isSafe) {
-                    possiblePositions.push({ x, y });
-                }
-            }
-        }
-        
-        console.log('Found possible safe positions:', possiblePositions.length);
-        
-        // If we found safe positions, pick one randomly
-        if (possiblePositions.length > 0) {
-            const randomIndex = Math.floor(Math.random() * possiblePositions.length);
-            const safePos = possiblePositions[randomIndex];
-            console.log('Selected random safe position:', safePos);
-            
-            // Convert grid coordinates to pixel coordinates
-            return {
-                x: safePos.x * this.CELL_SIZE + (this.CELL_SIZE / 2),
-                y: safePos.y * this.CELL_SIZE + (this.CELL_SIZE / 2)
-            };
-        }
-        
-        // Fallback to center if no safe spot found
-        const centerX = Math.floor(this.gridWidth / 2);
-        const centerY = Math.floor(this.gridHeight / 2);
-        console.log('No safe positions found, using center:', { centerX, centerY });
-        return {
-            x: centerX * this.CELL_SIZE + (this.CELL_SIZE / 2),
-            y: centerY * this.CELL_SIZE + (this.CELL_SIZE / 2)
-        };
-    }
-
-    // Find path between two points using A* algorithm
-    private findPath(startX: number, startY: number, endX: number, endY: number): { x: number, y: number }[] {
-        type PathNode = {
-            x: number;
-            y: number;
-            f: number;
-            g: number;
-            h: number;
-            parent: PathNode | null;
-        };
-
-        const openSet: PathNode[] = [];
-        const closedSet: Set<string> = new Set();
-        const startNode: PathNode = { x: startX, y: startY, f: 0, g: 0, h: 0, parent: null };
-        
-        openSet.push(startNode);
-        
-        while (openSet.length > 0) {
-            // Find node with lowest f score
-            let currentIndex = 0;
-            for (let i = 0; i < openSet.length; i++) {
-                if (openSet[i].f < openSet[currentIndex].f) {
-                    currentIndex = i;
-                }
-            }
-            
-            const current = openSet[currentIndex];
-            
-            // If we reached the end, reconstruct and return the path
-            if (current.x === endX && current.y === endY) {
-                const path: { x: number, y: number }[] = [];
-                let temp = current;
-                while (temp.parent) {
-                    path.push({ x: temp.x, y: temp.y });
-                    temp = temp.parent;
-                }
-                return path.reverse();
-            }
-            
-            // Remove current from openSet and add to closedSet
-            openSet.splice(currentIndex, 1);
-            closedSet.add(`${current.x},${current.y}`);
-            
-            // Check all adjacent cells
-            const directions = [
-                { x: 0, y: -1 },  // up
-                { x: 1, y: 0 },   // right
-                { x: 0, y: 1 },   // down
-                { x: -1, y: 0 }   // left
-            ];
-            
-            for (const dir of directions) {
-                const neighborX = current.x + dir.x;
-                const neighborY = current.y + dir.y;
-                
-                // Skip if out of bounds or in closed set
-                if (neighborX < 0 || neighborX >= this.gridWidth || 
-                    neighborY < 0 || neighborY >= this.gridHeight ||
-                    closedSet.has(`${neighborX},${neighborY}`)) {
-                    continue;
-                }
-                
-                // Skip if position is occupied
-                if (this.isPositionOccupied(neighborX, neighborY)) {
-                    continue;
-                }
-                
-                const gScore = current.g + 1;
-                const hScore = Math.abs(neighborX - endX) + Math.abs(neighborY - endY);
-                const fScore = gScore + hScore;
-                
-                // Check if this path to neighbor is better
-                const existingNode = openSet.find(n => n.x === neighborX && n.y === neighborY);
-                if (!existingNode || gScore < existingNode.g) {
-                    const neighbor = {
-                        x: neighborX,
-                        y: neighborY,
-                        f: fScore,
-                        g: gScore,
-                        h: hScore,
-                        parent: current
-                    };
-                    
-                    if (!existingNode) {
-                        openSet.push(neighbor);
-                    }
-                }
-            }
-        }
-        
-        return [];  // No path found
-    }
-
     // Move player along path
     private moveAlongPath() {
         if (this.path.length === 0) {
             this.isMovingAlongPath = false;
             this.isPlayerMoving = false;
-            this.cameras.main.stopFollow();  // Stop following when path is complete
+            this.cameras.main.stopFollow(); // Stop following when path is complete
             return;
         }
 
         const target = this.path[0];
         const targetX = target.x * this.CELL_SIZE + this.CELL_SIZE / 2;
         const targetY = target.y * this.CELL_SIZE + this.CELL_SIZE / 2;
-        
+
         // Calculate direction to move
         const dx = targetX - this.player.x;
         const dy = targetY - this.player.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance < 5) {  // If we're close enough to the target
-            this.path.shift();  // Remove the current target
+
+        if (distance < 5) {
+            // If we're close enough to the target
+            this.path.shift(); // Remove the current target
             if (this.path.length === 0) {
                 this.isMovingAlongPath = false;
                 this.isPlayerMoving = false;
-                this.cameras.main.stopFollow();  // Stop following when path is complete
+                this.cameras.main.stopFollow(); // Stop following when path is complete
             }
             return;
         }
-        
+
         // Move towards target
         const speed = this.MOVE_SPEED * (1 / this.cameras.main.zoom);
-        this.player.x += (dx / distance) * speed * (1/60);
-        this.player.y += (dy / distance) * speed * (1/60);
+        this.player.x += (dx / distance) * speed * (1 / 60);
+        this.player.y += (dy / distance) * speed * (1 / 60);
     }
 
     setSpaceId(id: string) {
@@ -994,55 +885,57 @@ class MainScene extends Phaser.Scene {
     private sendLeaveMessage() {
         if (this.ws?.readyState === WebSocket.OPEN && this.spaceId) {
             console.log('Sending leave message for space:', this.spaceId);
-            this.ws.send(JSON.stringify({
-                type: 'leave',
-                payload: {
-                    spaceId: this.spaceId
-                }
-            }));
+            this.ws.send(
+                JSON.stringify({
+                    type: 'leave',
+                    payload: {
+                        spaceId: this.spaceId,
+                    },
+                }),
+            );
         }
     }
 
     // Clean up WebSocket connection when scene is destroyed
     shutdown() {
         console.log('Shutting down MainScene...');
-        
+
         // Send leave message to server before closing connection
         this.sendLeaveMessage();
-        
+
         // Close WebSocket connection
         if (this.ws) {
             console.log('Closing WebSocket connection...');
             this.ws.close();
             this.ws = null;
         }
-        
+
         // Clear all game objects and references
         if (this.player) {
             this.player.destroy();
         }
-        
+
         // Clear other players
-        this.otherPlayers.forEach(player => {
+        this.otherPlayers.forEach((player) => {
             if (player && player.active) {
                 player.destroy();
             }
         });
         this.otherPlayers.clear();
-        
+
         // Clear grid objects
-        this.gridObjects.forEach(obj => {
+        this.gridObjects.forEach((obj) => {
             if (obj.sprite && obj.sprite.active) {
                 obj.sprite.destroy();
             }
         });
         this.gridObjects = [];
-        
+
         // Clear background tiles
         if (this.backgroundTiles) {
             this.backgroundTiles.destroy();
         }
-        
+
         // Clear input handlers
         if (this.input) {
             this.input.off('wheel');
@@ -1051,28 +944,27 @@ class MainScene extends Phaser.Scene {
             this.input.off('pointerup');
             this.input.off('pointerout');
         }
-        
+
         // Clear timers and animations
         if (this.time) {
             this.time.removeAllEvents();
         }
-        
+
         // Clear camera
         if (this.cameras && this.cameras.main) {
             this.cameras.main.stopFollow();
         }
-        
+
         // Clear player ID
         this.playerId = null;
-        
+
         // Reset state flags
         this.canMove = true;
         this.isPlayerMoving = false;
         this.isMovingAlongPath = false;
-        this.isDragging = false;
         this.selectedObject = null;
         this.path = [];
-        
+
         console.log('MainScene shutdown complete');
     }
 
@@ -1081,54 +973,102 @@ class MainScene extends Phaser.Scene {
         this.anims.create({
             key: 'left',
             frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
-            frameRate: 8,  // Reduced from 10 to 8 for smoother animation
+            frameRate: 8, // Reduced from 10 to 8 for smoother animation
             repeat: -1,
-            yoyo: true  // Add yoyo effect for smoother transitions
+            yoyo: true, // Add yoyo effect for smoother transitions
         });
 
         this.anims.create({
             key: 'turn',
-            frames: [ { key: 'dude', frame: 4 } ],
+            frames: [{ key: 'dude', frame: 4 }],
             frameRate: 20,
-            repeat: 0  // Don't repeat the turn animation
+            repeat: 0, // Don't repeat the turn animation
         });
 
         this.anims.create({
             key: 'right',
             frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
-            frameRate: 8,  // Reduced from 10 to 8 for smoother animation
+            frameRate: 8, // Reduced from 10 to 8 for smoother animation
             repeat: -1,
-            yoyo: true  // Add yoyo effect for smoother transitions
+            yoyo: true, // Add yoyo effect for smoother transitions
         });
     }
 }
 
 // React component that wraps the Phaser game
-const UserSpaceArena = forwardRef<{ handleDeleteSelected?: () => void; cleanup?: () => Promise<void> }, { spaceId: string }>((props, ref) => {
-    const { spaceId } = props;
-    // Reference to the Phaser game instance
+const UserSpaceArena = forwardRef<
+    { handleDeleteSelected?: () => void; cleanup?: () => Promise<void> },
+    { spaceId: string; userId: string }
+>((props, ref) => {
+
+    const [proximityUsers, setProximityUsers] = useState<ProximityUser[]>([]);
+
+    const { currentCall, callError, createCall, joinCall, leaveCall, getCurrentCallStatus, getActiveCallsInRoom } =
+        useWebRTC(props.spaceId, props.userId);
+
     const gameRef = useRef<Phaser.Game | null>(null);
     // Reference to the main scene
     const sceneRef = useRef<MainScene | null>(null);
+    
+    // Callback to receive proximity data from the game scene
+    const handleProximityUpdate = useCallback((users: ProximityUser[]) => {
+        console.log('Proximity users updated:', users);
+        setProximityUsers(users);
+        
+        // Handle proximity-based call logic
+        handleProximityCallLogic(users);
+    }, []);
 
-    // Expose cleanup method through ref
-    useImperativeHandle(ref, () => ({
-        cleanup: async () => {
-            // Call scene shutdown if it exists
-            if (sceneRef.current) {
-                sceneRef.current.shutdown();
-                // Add a small delay to ensure WebSocket messages are sent
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
+    // Handle proximity-based call logic
+    const handleProximityCallLogic = useCallback((users: ProximityUser[]) => {
+        const proximityUserIds = users.map(u => u.userId);
+        
+        console.log('Proximity call logic - Users:', proximityUserIds, 'Current call:', currentCall);
+        
+        if (proximityUserIds.length > 0) {
+            // Users are in proximity - check if we need to create or join a call
+            console.log('Users in proximity:', proximityUserIds);
             
-            // Destroy the game instance
-            if (gameRef.current) {
-                gameRef.current.destroy(true);
-                gameRef.current = null;
-                sceneRef.current = null;
+            // For now, just create a call if we're not already in one
+            if (!currentCall) {
+                console.log('Creating call for proximity users');
+                createCall();
+            } else {
+                console.log('Already in a call:', currentCall);
+            }
+        } else {
+            // No users in proximity - leave call if we're in one
+            if (currentCall) {
+                console.log('Leaving call - no users in proximity');
+                leaveCall();
+            } else {
+                console.log('No users in proximity and not in a call');
             }
         }
-    }), []);
+    }, [currentCall, createCall, leaveCall]);
+
+    // Expose cleanup method through ref
+    useImperativeHandle(
+        ref,
+        () => ({
+            cleanup: async () => {
+                // Call scene shutdown if it exists
+                if (sceneRef.current) {
+                    sceneRef.current.shutdown();
+                    // Add a small delay to ensure WebSocket messages are sent
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+
+                // Destroy the game instance
+                if (gameRef.current) {
+                    gameRef.current.destroy(true);
+                    gameRef.current = null;
+                    sceneRef.current = null;
+                }
+            },
+        }),
+        [],
+    );
 
     // Initialize the game when component mounts
     useEffect(() => {
@@ -1146,23 +1086,24 @@ const UserSpaceArena = forwardRef<{ handleDeleteSelected?: () => void; cleanup?:
             backgroundColor: '#000000',
             scale: {
                 mode: Phaser.Scale.RESIZE,
-                autoCenter: Phaser.Scale.CENTER_BOTH
+                autoCenter: Phaser.Scale.CENTER_BOTH,
             },
             audio: {
                 disableWebAudio: true,
-                noAudio: true
-            }
+                noAudio: true,
+            },
         };
 
         // Create the game instance
         gameRef.current = new Phaser.Game(config);
-        
+
         // Wait for the scene to be ready
         gameRef.current.events.once('ready', () => {
             const scene = gameRef.current?.scene.getScene('MainScene') as MainScene;
             if (scene) {
                 scene.setSpaceId(props.spaceId);
                 sceneRef.current = scene;
+                scene.events.on('proximity-users', handleProximityUpdate); // Listen for proximity updates from the scene
             }
         });
 
@@ -1178,7 +1119,7 @@ const UserSpaceArena = forwardRef<{ handleDeleteSelected?: () => void; cleanup?:
                 sceneRef.current = null;
             }
         };
-    }, []); // Empty dependency array - only run once on mount
+    }, [props.spaceId]);
 
     // Update spaceId when it changes
     useEffect(() => {
@@ -1187,16 +1128,16 @@ const UserSpaceArena = forwardRef<{ handleDeleteSelected?: () => void; cleanup?:
         }
     }, [props.spaceId]);
 
+    // Log call state changes
+    useEffect(() => {
+        console.log('Call state changed:', { currentCall, callError });
+    }, [currentCall, callError]);
+
     // Render the game container
-    return (
-        <div 
-            id="game-container" 
-            className="w-full h-full overflow-hidden"
-        />
-    );
+    return <div id="game-container" className="w-full h-full overflow-hidden" />;
 });
 
 // Set display name for the component
 UserSpaceArena.displayName = 'UserSpaceArena';
 
-export default UserSpaceArena; 
+export default UserSpaceArena;

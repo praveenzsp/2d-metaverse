@@ -7,7 +7,7 @@ import ArenaTopBar from '@/components/ArenaTopBar';
 import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import axios from '@/lib/axios';
-import VideoBox from '@/components/VideoBox';
+// import VideoBox from '@/components/VideoBox';
 
 const UserSpaceArena = dynamic(() => import('@/components/UserSpaceArena'), { ssr: false });
 
@@ -16,18 +16,20 @@ export default function SpacePage() {
     const router = useRouter();
     const spaceId = searchParams.get('spaceId');
 
+    const [userId, setUserId] = useState('');
     const [username, setUsername] = useState('User');
     const [spaceName, setSpaceName] = useState('Space');
 
     const arenaRef = useRef<{ handleDeleteSelected?: () => void; cleanup?: () => Promise<void> }>(null);
 
-    const videoRef = useRef<HTMLVideoElement | null>(null);
+    // const videoRef = useRef<HTMLVideoElement | null>(null);
 
     useEffect(() => {
         const fetchUsername = async () => {
             const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/me`);
             const username = response.data.username;
             setUsername(username);
+            setUserId(response.data.userId);
         };
         const fetchSpaceName = async () => {
             const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/space/${spaceId}`);
@@ -59,22 +61,24 @@ export default function SpacePage() {
 
             <div className="w-full h-full overflow-hidden">
                 <div className="absolute flex flex-row items-center justify-center  gap-2 left-1/2 transform -translate-x-1/2 p-2">
-                    <VideoBox
+                    {/* <VideoBox
                         videoRef={videoRef}
-                        variant="large"
+                        variant="medium"
                         avatarUrl={username}
                         videoEnabled={true}
                         audioEnabled={true}
+                        showExpandButton={true}
                     />
                     <VideoBox
                         videoRef={videoRef}
-                        variant="large"
+                        variant="medium"
                         avatarUrl={username}
                         videoEnabled={true}
                         audioEnabled={true}
-                    />
+                        showExpandButton={true}
+                    /> */}
                 </div>
-                <UserSpaceArena ref={arenaRef} spaceId={spaceId} />
+                <UserSpaceArena ref={arenaRef} spaceId={spaceId} userId={userId} />
             </div>
 
             <ArenaBottombar
