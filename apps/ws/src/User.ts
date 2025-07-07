@@ -6,31 +6,19 @@ import prisma from '@repo/db/client';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { JWT_SECRET } from './config';
 
-// This is a helper function that creates a random string
-// Used to generate unique IDs for users
-function getRandomString(length: number) {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-        result += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    return result;
-}
-
 // This is the User class - it represents a connected user in our system
 export class User {
     // These are properties that every User will have
-    public id: string; // A unique ID for this user
-    public userId?: string; // The user's ID from the database (optional)
+    public userId: string; // The unique identifier for this user
     private spaceId?: string; // The ID of the space/room they're in (optional)
     private x: number; // Their X position in the space
     private y: number; // Their Y position in the space
     private ws: WebSocket; // Their WebSocket connection
-    private PROXIMITY_CELLS = 2;
+    private PROXIMITY_CELLS = 1;
 
     // This is the constructor - it runs when we create a new User
     constructor(ws: WebSocket) {
-        this.id = getRandomString(10); // Give them a random ID
+        this.userId = ''; // Will be set after JWT verification
         this.x = 0; // Start at position (0,0)
         this.y = 0;
         this.ws = ws; // Store their WebSocket connection
@@ -43,7 +31,7 @@ export class User {
         return allUsersInSpace.filter((user) => {
             const xDiff = Math.abs(user.x - this.x);
             const yDiff = Math.abs(user.y - this.y);
-            return xDiff <= this.PROXIMITY_CELLS && yDiff <= this.PROXIMITY_CELLS;
+            return xDiff <= this.PROXIMITY_CELLS && yDiff <= this.PROXIMITY_CELLS && user.userId !== this.userId;
         });
     };
 
@@ -69,7 +57,7 @@ export class User {
                     }
 
                     // Generate a unique connection ID by combining userId with a timestamp
-                    this.userId = `${decodedToken.userId}-${Date.now()}`;
+                    this.userId = `${decodedToken.userId}`;
 
                     // Check if the space exists in the database
                     const space = await prisma.space.findFirst({
@@ -95,7 +83,7 @@ export class User {
                     const existingUsers =
                         RoomManager.getInstance()
                             .rooms.get(spaceId)
-                            ?.filter((x) => x.id !== this.id) ?? [];
+                            ?.filter((x) => x.userId !== this.userId) ?? [];
 
                     // Tell the user that they've joined and where user is
                     this.send({
@@ -128,7 +116,7 @@ export class User {
                         this.spaceId!,
                     );
 
-                    // Send the new user information about all existing users
+                    // Send the new user information to all existing users in the space
                     existingUsers.forEach((user) => {
                         this.send({
                             type: 'user-join',
@@ -187,6 +175,10 @@ export class User {
                             y: this.y,
                         },
                     });
+
+                case 'leave':
+                    this.destroy();
+                    break;
             }
         });
     }

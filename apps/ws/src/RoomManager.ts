@@ -37,7 +37,7 @@ export class RoomManager {
             return;
         }
         // Filter out the user from the room's user list
-        this.rooms.set(spaceId, (this.rooms.get(spaceId)?.filter((u) => u.id !== user.id) ?? []));
+        this.rooms.set(spaceId, (this.rooms.get(spaceId)?.filter((u) => u.userId !== user.userId) ?? []));
     }
 
     // This method adds a user to a room
@@ -59,7 +59,7 @@ export class RoomManager {
         // Go through each user in the room
         this.rooms.get(roomId)?.forEach((u) => {
             // Don't send the message to the sender
-            if (u.id !== user.id) {
+            if (u.userId !== user.userId) {
                 u.send(message);
             }
         });
