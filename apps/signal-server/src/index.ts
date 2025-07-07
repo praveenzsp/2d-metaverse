@@ -20,6 +20,32 @@ const rooms = new Map<string, Set<string>>();
 // this is used for quick lookup of which room a user is in
 const usersRooms = new Map<string, string>();
 
+
+// this stores the calls in a room and also stores the users in a specific call
+// stores { roomId: { callId: [userId1, userId2] } }
+const roomCalls = new Map<string, Map<string, Set<string>>>();
+
+// Track which call each user is currently in: { userId: { roomId, callId } }
+const userCurrentCall = new Map<string, { roomId: string, callId: string }>();
+
+const createRandomCallId = ()=>{
+    return Math.random().toString(36).substring(2, 15);
+}
+
+// Helper function to get all active calls in a room
+const getActiveCallsInRoom = (roomId: string) => {
+    if (!roomCalls.has(roomId)) return [];
+    
+    const calls = [];
+    const roomCallMap = roomCalls.get(roomId);
+    if (roomCallMap) {
+        for (const [callId, users] of roomCallMap.entries()) {
+            calls.push({ callId, participants: Array.from(users) });
+        }
+    }
+    return calls;
+};
+
 io.on('connection', (socket) => {
     console.log(`Socket connected: ${socket.id}`);
 
@@ -39,6 +65,10 @@ io.on('connection', (socket) => {
         // Send room members only to the joining user
         socket.emit('room-members', Array.from(rooms.get(roomId) || []));
 
+        // Send active calls in the room to the joining user
+        const activeCalls = getActiveCallsInRoom(roomId);
+        socket.emit('active-calls', activeCalls);
+
         // Notify others in the room about the new user
         io.to(roomId).emit('user-joined', userId);
     });
@@ -48,12 +78,96 @@ io.on('connection', (socket) => {
         
         if (!rooms.has(roomId)) return;
 
+        // Remove user from all calls in this room
+        if (roomCalls.has(roomId)) {
+            const roomCallMap = roomCalls.get(roomId);
+            if (roomCallMap) {
+                for (const [callId, users] of roomCallMap.entries()) {
+                    if (users.has(userId)) {
+                        users.delete(userId);
+                        // If no users left in the call, remove it
+                        if (users.size === 0) {
+                            roomCallMap.delete(callId);
+                        }
+                        io.to(roomId).emit('call-left', callId, userId);
+                    }
+                }
+            }
+        }
+
+        // Remove user from call tracking
+        userCurrentCall.delete(userId);
+
         rooms.get(roomId)?.delete(userId);
         usersRooms.delete(userId);
         socket.leave(roomId);
 
         // Notify others in the room about the user leaving
         io.to(roomId).emit('user-left', userId);
+    });
+
+    socket.on('create-call', (roomId:string)=>{
+        if (!rooms.has(roomId)) return;
+
+        const callId = createRandomCallId();
+
+        // Initialize roomCalls for this room if it doesn't exist
+        if (!roomCalls.has(roomId)) {
+            roomCalls.set(roomId, new Map<string, Set<string>>());
+        }
+
+        // create a new call with empty set of users
+        roomCalls.get(roomId)?.set(callId, new Set<string>());
+
+        // notify all users in the room about the new call
+        io.to(roomId).emit('call-created', callId, roomCalls.get(roomId)?.get(callId));
+    });
+
+    socket.on('join-call', (roomId:string, callId: string, userId: string)=>{
+        if(!rooms.has(roomId) || !roomCalls.has(roomId) || !roomCalls.get(roomId)?.has(callId)) return;
+
+        // Check if user is already in a call
+        const currentCall = userCurrentCall.get(userId);
+        if (currentCall) {
+            // User is already in a call, send error
+            socket.emit('call-join-error', 'User is already in a call');
+            return;
+        }
+
+        roomCalls.get(roomId)?.get(callId)?.add(userId);
+        
+        // Track that this user is now in this call
+        userCurrentCall.set(userId, { roomId, callId });
+
+        io.to(roomId).emit('call-joined', callId, userId);
+    });
+
+    socket.on('leave-call', (roomId:string, callId: string, userId: string)=>{
+        if(!rooms.has(roomId) || !roomCalls.has(roomId) || !roomCalls.get(roomId)?.has(callId)) return;
+        
+        roomCalls.get(roomId)?.get(callId)?.delete(userId);
+        
+        // Remove user from call tracking
+        userCurrentCall.delete(userId);
+        
+        // If no users left in the call, remove the call entirely
+        if (roomCalls.get(roomId)?.get(callId)?.size === 0) {
+            roomCalls.get(roomId)?.delete(callId);
+        }
+        
+        io.to(roomId).emit('call-left', callId, userId);
+    });
+
+    socket.on('get-active-calls', (roomId: string) => {
+        if (!rooms.has(roomId)) return;
+        
+        const activeCalls = getActiveCallsInRoom(roomId);
+        socket.emit('active-calls', activeCalls);
+    });
+
+    socket.on('get-my-current-call', (userId: string) => {
+        const currentCall = userCurrentCall.get(userId);
+        socket.emit('my-current-call', currentCall || null);
     });
 
     socket.on('send-message', (roomId: string, userId: string, message: string) => {
@@ -183,6 +297,26 @@ io.on('connection', (socket) => {
 
         const roomId = usersRooms.get(userId);
         if (!roomId) return;
+
+        // Remove user from all calls in this room
+        if (roomCalls.has(roomId)) {
+            const roomCallMap = roomCalls.get(roomId);
+            if (roomCallMap) {
+                for (const [callId, users] of roomCallMap.entries()) {
+                    if (users.has(userId)) {
+                        users.delete(userId);
+                        // If no users left in the call, remove it
+                        if (users.size === 0) {
+                            roomCallMap.delete(callId);
+                        }
+                        io.to(roomId).emit('call-left', callId, userId);
+                    }
+                }
+            }
+        }
+
+        // Remove user from call tracking
+        userCurrentCall.delete(userId);
 
         rooms.get(roomId)?.delete(userId);
         usersRooms.delete(userId);
