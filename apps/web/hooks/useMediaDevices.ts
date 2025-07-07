@@ -24,21 +24,6 @@ export default function useMediaDevices(videoRef: React.RefObject<HTMLVideoEleme
 		},
 	}), []);
 
-	// Check permissions for camera and microphone
-	const checkPermissions = useCallback(async () => {
-		try {
-			const cameraPermission = await navigator.permissions.query({ name: 'camera' as PermissionName });
-			const microphonePermission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-			
-			return {
-				camera: cameraPermission.state === 'granted',
-				microphone: microphonePermission.state === 'granted'
-			};
-		} catch (error) {
-			console.error('Permission check failed:', error);
-			return { camera: false, microphone: false };
-		}
-	}, []);
 
 	// Get user media stream with proper error handling
 	const getUserStream = useCallback(async (customConstraints?: MediaStreamConstraints) => {
@@ -46,16 +31,7 @@ export default function useMediaDevices(videoRef: React.RefObject<HTMLVideoEleme
 		setError(null);
 		
 		try {
-			const permissions = await checkPermissions();
 			const constraintsToUse = customConstraints || constraints;
-			
-			// Check if we have permissions for requested media
-			if (constraintsToUse.video && !permissions.camera) {
-				throw new Error('Camera permission not granted');
-			}
-			if (constraintsToUse.audio && !permissions.microphone) {
-				throw new Error('Microphone permission not granted');
-			}
 			
 			const userStream = await navigator.mediaDevices.getUserMedia(constraintsToUse);
 			return userStream;
@@ -80,7 +56,7 @@ export default function useMediaDevices(videoRef: React.RefObject<HTMLVideoEleme
 		} finally {
 			setIsLoading(false);
 		}
-	}, [constraints, checkPermissions]);
+	}, [constraints]);
 
 	// Initialize media stream
 	useEffect(() => {
@@ -352,6 +328,5 @@ export default function useMediaDevices(videoRef: React.RefObject<HTMLVideoEleme
 		handleAudioToggle,
 		handleVideoDeviceChange,
 		handleAudioDeviceChange,
-		checkPermissions,
 	};
 }
