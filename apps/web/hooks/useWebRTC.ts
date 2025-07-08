@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { Socket, io } from 'socket.io-client';
 
-interface Participant {
+interface SpaceMember {
     id: string;
     stream?: MediaStream | null;
     username: string;
@@ -9,18 +9,13 @@ interface Participant {
     status?: 'ready' | 'busy' | 'connected' | 'rejected' | 'disconnected';
 }
 
-interface Call {
-    callId: string;
-    participants: string[];
-}
-
 interface CurrentCall {
-    roomId: string;
+    spaceId: string;
     callId: string;
 }
 
-export const useWebRTC = (roomId: string, userId: string) => {
-    const [participants, setParticipants] = useState<Participant[]>([]);
+export const useWebRTC = (spaceId: string, userId: string) => {
+    const [spaceMembers, setSpaceMembers] = useState<SpaceMember[]>([]);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [audioEnabled, setAudioEnabled] = useState(false);
@@ -28,8 +23,8 @@ export const useWebRTC = (roomId: string, userId: string) => {
     const [error, setError] = useState<string | null>(null);
     
     // Call management state
-    const [activeCalls, setActiveCalls] = useState<Call[]>([]);
     const [currentCall, setCurrentCall] = useState<CurrentCall | null>(null);
+    const [callMembers, setCallMembers] = useState<string[]>([]);
     const [callError, setCallError] = useState<string | null>(null);
 
     const socketRef = useRef<Socket | null>(null);
@@ -37,9 +32,10 @@ export const useWebRTC = (roomId: string, userId: string) => {
     const localStreamRef = useRef<MediaStream | null>(null);
 
     const initializeSocket = () => {
+        console.log('initializeSocket call reached');
         if (socketRef.current?.connected) return;
 
-        socketRef.current = io(process.env.NEXT_PUBLIC_BACKEND_URL!);
+        socketRef.current = io(process.env.NEXT_PUBLIC_SIGNAL_SERVER_URL!);
 
         socketRef.current.on('connect', () => {
             console.log('connected to signal server');
@@ -58,21 +54,21 @@ export const useWebRTC = (roomId: string, userId: string) => {
             setError('Connection error');
         });
 
-        socketRef.current.on('room-members', (members: Participant[]) => {
-            console.log('room members', members);
-            setParticipants(members);
+        socketRef.current.on('space-members', (members: SpaceMember[]) => {
+            console.log('space members', members);
+            setSpaceMembers(members);
         });
 
-        socketRef.current.on('user-joined', (newUser: Participant) => {
-            console.log(`${newUser.id} joined the room ${roomId}`);
-            if (newUser.id !== userId) {
-                setParticipants((prev) => [...prev, newUser]);
+        socketRef.current.on('user-joined', (newUserId: string) => {
+            console.log(`${newUserId} joined the space ${spaceId}`);
+            if (newUserId !== userId) {
+                setSpaceMembers((prev) => [...prev, { id: newUserId, username: newUserId, avatarUrl: '' }]);
             }
         });
 
-        socketRef.current.on('user-left', (leftUser: Participant) => {
-            console.log(`${leftUser.id} left the room ${roomId}`);
-            setParticipants((prev) => prev.filter((user) => user.id !== leftUser.id));
+        socketRef.current.on('user-left', (leftUserId: string) => {
+            console.log(`${leftUserId} left the space ${spaceId}`);
+            setSpaceMembers((prev) => prev.filter((user) => user.id !== leftUserId));
         });
 
         //this user got a message from another user
@@ -86,23 +82,26 @@ export const useWebRTC = (roomId: string, userId: string) => {
             async ({
                 from,
                 to,
-                receivedOffer,
+                offer,
             }: {
                 from: string;
                 to: string;
-                receivedOffer: RTCSessionDescriptionInit;
+                offer: RTCSessionDescriptionInit;
             }) => {
                 if (to !== userId) return;
 
                 console.log(`${from} offered to ${to}`);
                 try {
                     const pc = createPeerConnection(from);
-                    await pc.setRemoteDescription(new RTCSessionDescription(receivedOffer!));
+                    await pc.setRemoteDescription(new RTCSessionDescription(offer!));
 
                     const answer = await pc.createAnswer();
                     await pc.setLocalDescription(answer);
 
-                    socketRef.current?.emit('answer', roomId, userId, from, answer);
+                    // Include callId in the answer event
+                    if (currentCall) {
+                        socketRef.current?.emit('answer', spaceId, currentCall.callId, userId, from, answer);
+                    }
                 } catch (error) {
                     console.error('Error setting remote description:', error);
                 }
@@ -115,18 +114,18 @@ export const useWebRTC = (roomId: string, userId: string) => {
             async ({
                 from,
                 to,
-                receivedAnswer,
+                answer,
             }: {
                 from: string;
                 to: string;
-                receivedAnswer: RTCSessionDescriptionInit;
+                answer: RTCSessionDescriptionInit;
             }) => {
                 if (to !== userId) return;
 
                 console.log(`${from} answered to ${to}`);
                 try {
                     const pc = createPeerConnection(from);
-                    await pc.setRemoteDescription(new RTCSessionDescription(receivedAnswer!));
+                    await pc.setRemoteDescription(new RTCSessionDescription(answer!));
                 } catch (error) {
                     console.error('Error setting remote description:', error);
                 }
@@ -138,19 +137,19 @@ export const useWebRTC = (roomId: string, userId: string) => {
             async ({
                 from,
                 to,
-                receivedCandidate,
+                candidate,
             }: {
                 from: string;
                 to: string;
-                receivedCandidate: RTCIceCandidateInit;
+                candidate: RTCIceCandidateInit;
             }) => {
                 if (to !== userId) return;
 
                 console.log(`${from} sent an ice candidate to ${to}`);
                 try {
                     const pc = createPeerConnection(from);
-                    if (pc && receivedCandidate) {
-                        await pc.addIceCandidate(new RTCIceCandidate(receivedCandidate!));
+                    if (pc && candidate) {
+                        await pc.addIceCandidate(new RTCIceCandidate(candidate!));
                     }
                 } catch (error) {
                     console.error('Error adding ice candidate:', error);
@@ -162,20 +161,22 @@ export const useWebRTC = (roomId: string, userId: string) => {
             console.log(`Connection request from ${data.from} to ${data.to}`);
             // Auto-accept connection requests for now
             if (data.to === userId) {
-                socketRef.current?.emit('connection-accepted', roomId, userId, data.from);
+                if (currentCall) {
+                    socketRef.current?.emit('connection-accepted', spaceId, currentCall.callId, userId, data.from);
+                }
             }
         });
 
         socketRef.current.on('connection-accepted', (data: { from: string; to: string }) => {
             console.log(`Connection accepted from ${data.from} to ${data.to}`);
             // Update participant status to connected
-            setParticipants((prev) => prev.map((p) => (p.id === data.from ? { ...p, status: 'connected' } : p)));
+            setSpaceMembers((prev) => prev.map((p) => (p.id === data.from ? { ...p, status: 'connected' } : p)));
         });
 
         socketRef.current.on('connection-rejected', (data: { from: string; to: string }) => {
             console.log(`Connection rejected from ${data.from} to ${data.to}`);
             // Update participant status to rejected
-            setParticipants((prev) => prev.map((p) => (p.id === data.from ? { ...p, status: 'rejected' } : p)));
+            setSpaceMembers((prev) => prev.map((p) => (p.id === data.from ? { ...p, status: 'rejected' } : p)));
         });
 
         socketRef.current.on('connection-closed', (data: { from: string; to: string }) => {
@@ -186,7 +187,7 @@ export const useWebRTC = (roomId: string, userId: string) => {
                 pc.close();
                 peerConnectionsRef.current.delete(data.from);
             }
-            setParticipants((prev) =>
+            setSpaceMembers((prev) =>
                 prev.map((p) => (p.id === data.from ? { ...p, status: 'disconnected', stream: null } : p)),
             );
         });
@@ -194,13 +195,13 @@ export const useWebRTC = (roomId: string, userId: string) => {
         socketRef.current.on('user-ready', (userId: string) => {
             console.log(`User ${userId} is ready`);
             // Update participant status to ready
-            setParticipants((prev) => prev.map((p) => (p.id === userId ? { ...p, status: 'ready' } : p)));
+            setSpaceMembers((prev) => prev.map((p) => (p.id === userId ? { ...p, status: 'ready' } : p)));
         });
 
         socketRef.current.on('user-busy', (userId: string) => {
             console.log(`User ${userId} is busy`);
             // Update participant status to busy
-            setParticipants((prev) => prev.map((p) => (p.id === userId ? { ...p, status: 'busy' } : p)));
+            setSpaceMembers((prev) => prev.map((p) => (p.id === userId ? { ...p, status: 'busy' } : p)));
         });
 
         socketRef.current.on('pong', () => {
@@ -216,40 +217,34 @@ export const useWebRTC = (roomId: string, userId: string) => {
                 pc.close();
                 peerConnectionsRef.current.delete(userId);
             }
-            setParticipants((prev) => prev.filter((p) => p.id !== userId));
+            setSpaceMembers((prev) => prev.filter((p) => p.id !== userId));
         });
 
         // Call management events
-        socketRef.current.on('active-calls', (calls: Call[]) => {
-            console.log('Active calls in room:', calls);
-            setActiveCalls(calls);
+        socketRef.current.on('call-created', (callId: string, participants: string[]) => {
+            console.log(`Call created: ${callId} with participants:`, participants);
+            setCurrentCall({ spaceId, callId });
+            setCallMembers(participants);
         });
 
-        socketRef.current.on('call-created', (callId: string, participants: Set<string>) => {
-            console.log(`Call created: ${callId} with participants:`, Array.from(participants));
-            setActiveCalls((prev) => [...prev, { callId, participants: Array.from(participants) }]);
+        socketRef.current.on('call-members', (members: string[]) => {
+            console.log(`Call members:`, members);
+            setCallMembers(members);
         });
 
         socketRef.current.on('call-joined', (callId: string, participantId: string) => {
             console.log(`User ${participantId} joined call ${callId}`);
-            setActiveCalls((prev) => 
-                prev.map(call => 
-                    call.callId === callId 
-                        ? { ...call, participants: [...call.participants, participantId] }
-                        : call
-                )
-            );
+            setCallMembers((prev) => [...prev, participantId]);
         });
 
         socketRef.current.on('call-left', (callId: string, participantId: string) => {
             console.log(`User ${participantId} left call ${callId}`);
-            setActiveCalls((prev) => 
-                prev.map(call => 
-                    call.callId === callId 
-                        ? { ...call, participants: call.participants.filter(p => p !== participantId) }
-                        : call
-                ).filter(call => call.participants.length > 0) // Remove empty calls
-            );
+            setCallMembers((prev) => prev.filter(p => p !== participantId));
+            
+            // If this user left the call, clear current call
+            if (participantId === userId) {
+                setCurrentCall(null);
+            }
         });
 
         socketRef.current.on('call-join-error', (errorMessage: string) => {
@@ -284,10 +279,10 @@ export const useWebRTC = (roomId: string, userId: string) => {
             });
         }
 
-        //when the remote user sends a stream, we add it to the participants list
+        //when the remote user sends a stream, we add it to the spaceMembers list
         pc.ontrack = (event: RTCTrackEvent) => {
             console.log('Received remote stream from', remoteUserId);
-            setParticipants((prev) => {
+            setSpaceMembers((prev) => {
                 return prev.map((p) => {
                     return p.id === remoteUserId ? { ...p, stream: event.streams[0] } : p;
                 });
@@ -296,8 +291,8 @@ export const useWebRTC = (roomId: string, userId: string) => {
 
         //when the remote user sends an ice candidate, we send it to the server
         pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
-            if (event.candidate) {
-                socketRef.current?.emit('ice-candidate', roomId, userId, remoteUserId, event.candidate);
+            if (event.candidate && currentCall) {
+                socketRef.current?.emit('ice-candidate', spaceId, currentCall.callId, userId, remoteUserId, event.candidate);
             }
         };
 
@@ -306,7 +301,7 @@ export const useWebRTC = (roomId: string, userId: string) => {
             if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
                 console.log('Connection failed or disconnected, closing peer connection');
                 pc.close();
-                setParticipants((prev) => prev.filter((p) => p.id !== remoteUserId));
+                setSpaceMembers((prev) => prev.filter((p) => p.id !== remoteUserId));
                 peerConnectionsRef.current.delete(remoteUserId);
             }
         };
@@ -337,44 +332,31 @@ export const useWebRTC = (roomId: string, userId: string) => {
         }
     };
 
-    const joinRoom = async () => {
+    const joinSpace = async () => {
         try {
             const socket = initializeSocket();
+            console.log('initializeSocket called');
 
             await getUserMedia();
 
-            socket?.emit('join-room', roomId, userId);
+            socket?.emit('join-space', spaceId, userId);
 
-            // Get active calls and current call status after joining room
+            // Get current call status after joining space
             setTimeout(() => {
-                getActiveCallsInRoom();
                 getCurrentCallStatus();
             }, 1000);
 
-            setParticipants((prev) => {
-                const newParticipants = [...prev];
-                newParticipants.forEach(async (participant: Participant) => {
-                    // this user is sending an offer to every other user in the room
-                    if (participant.id != userId) {
-                        const pc = createPeerConnection(participant.id);
-                        const offer = await pc.createOffer();
-                        await pc.setLocalDescription(offer);
-                        socket?.emit('offer', roomId, userId, participant.id, offer);
-                    }
-                });
-                return newParticipants;
-            });
         } catch (error) {
-            console.error('error joining room', error);
-            setError('Failed to join room');
+            console.error('error joining space', error);
+            setError('Failed to join space');
         }
     };
 
-    const leaveRoom = useCallback(() => {
+    const leaveSpace = useCallback(() => {
         try {
             // Leave current call if in one
             if (currentCall) {
-                socketRef.current?.emit('leave-call', roomId, currentCall.callId, userId);
+                socketRef.current?.emit('leave-call', spaceId, currentCall.callId, userId);
             }
 
             if (localStreamRef.current) {
@@ -388,21 +370,21 @@ export const useWebRTC = (roomId: string, userId: string) => {
             peerConnectionsRef.current.forEach((pc) => pc.close());
             peerConnectionsRef.current.clear();
 
-            socketRef.current?.emit('leave-room', roomId, userId);
+            socketRef.current?.emit('leave-space', spaceId, userId);
             socketRef.current = null;
-            setParticipants([]);
+            setSpaceMembers([]);
             setIsConnected(false);
             setError(null);
             
             // Clear call-related state
-            setActiveCalls([]);
             setCurrentCall(null);
+            setCallMembers([]);
             setCallError(null);
         } catch (error) {
-            console.error('error leaving room', error);
-            setError('Failed to leave room');
+            console.error('error leaving space', error);
+            setError('Failed to leave space');
         }
-    }, [roomId, userId, currentCall]);
+    }, [spaceId, userId, currentCall]);
 
     const toggleAudio = () => {
         if (localStreamRef.current) {
@@ -424,16 +406,20 @@ export const useWebRTC = (roomId: string, userId: string) => {
 
     // Call management functions
     const createCall = useCallback(() => {
+        console.log('[WebRTC] createCall called');
         if (!socketRef.current?.connected) {
+            console.log('[WebRTC] createCall not connected to server');
             setCallError('Not connected to server');
             return;
         }
         
-        socketRef.current.emit('create-call', roomId);
+        socketRef.current.emit('create-call', spaceId, userId);
+        console.log('create-call emitted');
         setCallError(null);
-    }, [roomId]);
+    }, [spaceId, userId]);
 
     const joinCall = useCallback((callId: string) => {
+        console.log('[WebRTC] joinCall called');
         if (!socketRef.current?.connected) {
             setCallError('Not connected to server');
             return;
@@ -444,19 +430,21 @@ export const useWebRTC = (roomId: string, userId: string) => {
             return;
         }
 
-        socketRef.current.emit('join-call', roomId, callId, userId);
+        socketRef.current.emit('join-call', spaceId, callId, userId);
         setCallError(null);
-    }, [roomId, userId, currentCall]);
+    }, [spaceId, userId, currentCall]);
 
     const leaveCall = useCallback(() => {
+        console.log('[WebRTC] leaveCall called');
         if (!socketRef.current?.connected || !currentCall) {
             return;
         }
 
-        socketRef.current.emit('leave-call', roomId, currentCall.callId, userId);
+        socketRef.current.emit('leave-call', spaceId, currentCall.callId, userId);
         setCurrentCall(null);
+        setCallMembers([]);
         setCallError(null);
-    }, [roomId, userId, currentCall]);
+    }, [spaceId, userId, currentCall]);
 
     const getCurrentCallStatus = useCallback(() => {
         if (!socketRef.current?.connected) {
@@ -466,39 +454,30 @@ export const useWebRTC = (roomId: string, userId: string) => {
         socketRef.current.emit('get-my-current-call', userId);
     }, [userId]);
 
-    const getActiveCallsInRoom = useCallback(() => {
-        if (!socketRef.current?.connected) {
-            return;
-        }
-
-        socketRef.current.emit('get-active-calls', roomId);
-    }, [roomId]);
-
     useEffect(() => {
         return () => {
-            leaveRoom();
+            leaveSpace();
         };
-    }, [leaveRoom]);
+    }, [leaveSpace]);
 
     return {
-        participants,
+        spaceMembers,
         localStream,
         isConnected,
         error,
         audioEnabled,
         videoEnabled,
-        joinRoom,
-        leaveRoom,
+        joinSpace,
+        leaveSpace,
         toggleAudio,
         toggleVideo,
         // Call management
-        activeCalls,
         currentCall,
+        callMembers,
         callError,
         createCall,
         joinCall,
         leaveCall,
         getCurrentCallStatus,
-        getActiveCallsInRoom,
     };
 };
