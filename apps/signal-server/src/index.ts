@@ -13,74 +13,61 @@ const io = new Server(httpServer, {
     },
 });
 
-// rooms is a map of room id to a set of user ids
-const rooms = new Map<string, Set<string>>();
+// spaces is a map of space id to a set of user ids
+const spaces = new Map<string, Set<string>>();
 
-// usersRooms is a map of user id to the room id they are in
-// this is used for quick lookup of which room a user is in
-const usersRooms = new Map<string, string>();
+// usersSpaces is a map of user id to the space id they are in
+// this is used for quick lookup of which space a user is in
+const usersSpaces = new Map<string, string>();
 
+// this stores the calls in a space and also stores the users in a specific call
+// stores { spaceId: { callId: [userId1, userId2] } }
+const spaceCalls = new Map<string, Map<string, Set<string>>>();
 
-// this stores the calls in a room and also stores the users in a specific call
-// stores { roomId: { callId: [userId1, userId2] } }
-const roomCalls = new Map<string, Map<string, Set<string>>>();
+// Track which call each user is currently in: { userId: { spaceId, callId } }
+const userCurrentCall = new Map<string, { spaceId: string; callId: string }>();
 
-// Track which call each user is currently in: { userId: { roomId, callId } }
-const userCurrentCall = new Map<string, { roomId: string, callId: string }>();
-
-const createRandomCallId = ()=>{
+const createRandomCallId = () => {
     return Math.random().toString(36).substring(2, 15);
-}
-
-// Helper function to get all active calls in a room
-const getActiveCallsInRoom = (roomId: string) => {
-    if (!roomCalls.has(roomId)) return [];
-    
-    const calls = [];
-    const roomCallMap = roomCalls.get(roomId);
-    if (roomCallMap) {
-        for (const [callId, users] of roomCallMap.entries()) {
-            calls.push({ callId, participants: Array.from(users) });
-        }
-    }
-    return calls;
 };
 
 io.on('connection', (socket) => {
     console.log(`Socket connected: ${socket.id}`);
 
-    socket.on('join-room', (roomId: string, userId: string) => {
-        console.log(`User ${userId} joining room ${roomId}`);
-        
-        if (!rooms.has(roomId)) {
-            rooms.set(roomId, new Set<string>());
+    /**
+     * User joins a space. Only receives the list of space members.
+     */
+    socket.on('join-space', (spaceId: string, userId: string) => {
+        console.log(`User ${userId} joining space ${spaceId}`);
+
+        if (!spaces.has(spaceId)) {
+            spaces.set(spaceId, new Set<string>());
         }
-        rooms.get(roomId)?.add(userId);
-        usersRooms.set(userId, roomId);
-        socket.join(roomId);
+        spaces.get(spaceId)?.add(userId);
+        usersSpaces.set(userId, spaceId);
+        socket.join(spaceId);
 
         // Store userId on socket for later use
         socket.data.userId = userId;
 
-        // Send room members only to the joining user
-        socket.emit('room-members', Array.from(rooms.get(roomId) || []));
+        // Send space members only to the joining user
+        socket.emit('space-members', Array.from(spaces.get(spaceId) || []));
 
-        // Send active calls in the room to the joining user
-        const activeCalls = getActiveCallsInRoom(roomId);
-        socket.emit('active-calls', activeCalls);
-
-        // Notify others in the room about the new user
-        io.to(roomId).emit('user-joined', userId);
+        // Notify others in the space about the new user
+        io.to(spaceId).emit('user-joined', userId);
     });
 
-    socket.on('leave-room', (roomId: string, userId: string) => {
-        console.log(`User ${userId} leaving room ${roomId}`);
-        
-        if (!rooms.has(roomId)) return;
+    /**
+     * User leaves a space. Remove from all calls and notify only relevant call participants.
+     */
+    socket.on('leave-space', (spaceId: string, userId: string) => {
+        console.log(`User ${userId} leaving space ${spaceId}`);
 
-        // Remove user from all calls in this room
-        if (roomCalls.has(roomId)) {
-            const roomCallMap = roomCalls.get(roomId);
+        if (!spaces.has(spaceId)) return;
+
+        // Remove user from all calls in this space
+        if (spaceCalls.has(spaceId)) {
+            const roomCallMap = spaceCalls.get(spaceId);
             if (roomCallMap) {
                 for (const [callId, users] of roomCallMap.entries()) {
                     if (users.has(userId)) {
@@ -89,7 +76,9 @@ io.on('connection', (socket) => {
                         if (users.size === 0) {
                             roomCallMap.delete(callId);
                         }
-                        io.to(roomId).emit('call-left', callId, userId);
+                        // Notify only call participants
+                        io.to(`call:${callId}`).emit('call-left', callId, userId);
+                        socket.leave(`call:${callId}`);
                     }
                 }
             }
@@ -98,33 +87,41 @@ io.on('connection', (socket) => {
         // Remove user from call tracking
         userCurrentCall.delete(userId);
 
-        rooms.get(roomId)?.delete(userId);
-        usersRooms.delete(userId);
-        socket.leave(roomId);
+        spaces.get(spaceId)?.delete(userId);
+        usersSpaces.delete(userId);
+        socket.leave(spaceId);
 
-        // Notify others in the room about the user leaving
-        io.to(roomId).emit('user-left', userId);
+        // Notify others in the space about the user leaving
+        io.to(spaceId).emit('user-left', userId);
     });
 
-    socket.on('create-call', (roomId:string)=>{
-        if (!rooms.has(roomId)) return;
+    /**
+     * Create a new call in a space. Only the creator is added to the call.
+     */
+    socket.on('create-call', (spaceId: string, userId: string) => {
+        if (!spaces.has(spaceId)) return;
 
         const callId = createRandomCallId();
 
-        // Initialize roomCalls for this room if it doesn't exist
-        if (!roomCalls.has(roomId)) {
-            roomCalls.set(roomId, new Map<string, Set<string>>());
+        // Initialize spaceCalls for this space if it doesn't exist
+        if (!spaceCalls.has(spaceId)) {
+            spaceCalls.set(spaceId, new Map<string, Set<string>>());
         }
 
-        // create a new call with empty set of users
-        roomCalls.get(roomId)?.set(callId, new Set<string>());
+        // create a new call with the creator as the first participant
+        spaceCalls.get(spaceId)?.set(callId, new Set<string>([userId]));
+        userCurrentCall.set(userId, { spaceId, callId });
+        socket.join(`call:${callId}`);
 
-        // notify all users in the room about the new call
-        io.to(roomId).emit('call-created', callId, roomCalls.get(roomId)?.get(callId));
+        // Notify only the creator about the new call
+        socket.emit('call-created', callId, [userId]);
     });
 
-    socket.on('join-call', (roomId:string, callId: string, userId: string)=>{
-        if(!rooms.has(roomId) || !roomCalls.has(roomId) || !roomCalls.get(roomId)?.has(callId)) return;
+    /**
+     * User joins a call. Only call participants are notified.
+     */
+    socket.on('join-call', (spaceId: string, callId: string, userId: string) => {
+        if (!spaces.has(spaceId) || !spaceCalls.has(spaceId) || !spaceCalls.get(spaceId)?.has(callId)) return;
 
         // Check if user is already in a call
         const currentCall = userCurrentCall.get(userId);
@@ -134,173 +131,191 @@ io.on('connection', (socket) => {
             return;
         }
 
-        roomCalls.get(roomId)?.get(callId)?.add(userId);
-        
-        // Track that this user is now in this call
-        userCurrentCall.set(userId, { roomId, callId });
+        spaceCalls.get(spaceId)?.get(callId)?.add(userId);
+        userCurrentCall.set(userId, { spaceId, callId });
+        socket.join(`call:${callId}`);
 
-        io.to(roomId).emit('call-joined', callId, userId);
+        // Send the list of users in the call to the user who just joined
+        socket.emit('call-members', Array.from(spaceCalls.get(spaceId)?.get(callId) || []));
+
+        // Notify only call participants
+        io.to(`call:${callId}`).emit('call-joined', callId, userId);
     });
 
-    socket.on('leave-call', (roomId:string, callId: string, userId: string)=>{
-        if(!rooms.has(roomId) || !roomCalls.has(roomId) || !roomCalls.get(roomId)?.has(callId)) return;
-        
-        roomCalls.get(roomId)?.get(callId)?.delete(userId);
-        
-        // Remove user from call tracking
+    /**
+     * User leaves a call. Only call participants are notified.
+     */
+    socket.on('leave-call', (spaceId: string, callId: string, userId: string) => {
+        if (!spaces.has(spaceId) || !spaceCalls.has(spaceId) || !spaceCalls.get(spaceId)?.has(callId)) return;
+
+        spaceCalls.get(spaceId)?.get(callId)?.delete(userId);
         userCurrentCall.delete(userId);
-        
+        socket.leave(`call:${callId}`);
+
         // If no users left in the call, remove the call entirely
-        if (roomCalls.get(roomId)?.get(callId)?.size === 0) {
-            roomCalls.get(roomId)?.delete(callId);
+        if (spaceCalls.get(spaceId)?.get(callId)?.size === 0) {
+            spaceCalls.get(spaceId)?.delete(callId);
         }
-        
-        io.to(roomId).emit('call-left', callId, userId);
+
+        // Notify only call participants
+        io.to(`call:${callId}`).emit('call-left', callId, userId);
     });
 
-    socket.on('get-active-calls', (roomId: string) => {
-        if (!rooms.has(roomId)) return;
-        
-        const activeCalls = getActiveCallsInRoom(roomId);
-        socket.emit('active-calls', activeCalls);
-    });
-
+    /**
+     * Get the current call for the user (if any).
+     */
     socket.on('get-my-current-call', (userId: string) => {
         const currentCall = userCurrentCall.get(userId);
         socket.emit('my-current-call', currentCall || null);
     });
 
-    socket.on('send-message', (roomId: string, userId: string, message: string) => {
-        if (!rooms.has(roomId)) return;
+    /**
+     * Send a message to the space (not call-specific).
+     */
+    socket.on('send-message', (spaceId: string, userId: string, message: string) => {
+        if (!spaces.has(spaceId)) return;
 
-        io.to(roomId).emit('message', { userId, message, timestamp: Date.now() });
+        io.to(spaceId).emit('message', { userId, message, timestamp: Date.now() });
     });
 
-    //webrtc signaling events
-    socket.on('offer', (roomId: string, targetUserId: string, offer: any) => {
-        if (!rooms.has(roomId)) return;
+    // --- WebRTC signaling events, all scoped to the call ---
 
+    /**
+     * Send an offer to a specific user in a call.
+     */
+    socket.on('offer', (spaceId: string, callId: string, targetUserId: string, offer: any) => {
+        if (!spaces.has(spaceId) || !spaceCalls.has(spaceId) || !spaceCalls.get(spaceId)?.has(callId)) return;
         const userId = socket.data.userId;
         if (!userId) return;
-
-        io.to(roomId).emit('offer', {
+        // Only emit to the call room
+        io.to(`call:${callId}`).emit('offer', {
             from: userId,
             to: targetUserId,
             offer: offer,
         });
     });
 
-    socket.on('answer', (roomId: string, targetUserId: string, answer: any) => {
-        if (!rooms.has(roomId)) return;
-
+    /**
+     * Send an answer to a specific user in a call.
+     */
+    socket.on('answer', (spaceId: string, callId: string, targetUserId: string, answer: any) => {
+        if (!spaces.has(spaceId) || !spaceCalls.has(spaceId) || !spaceCalls.get(spaceId)?.has(callId)) return;
         const userId = socket.data.userId;
         if (!userId) return;
-
-        io.to(roomId).emit('answer', {
+        io.to(`call:${callId}`).emit('answer', {
             from: userId,
             to: targetUserId,
             answer: answer,
         });
     });
 
-    socket.on('ice-candidate', (roomId: string, targetUserId: string, candidate: any) => {
-        if (!rooms.has(roomId)) return;
-
+    /**
+     * Send ICE candidate to a specific user in a call.
+     */
+    socket.on('ice-candidate', (spaceId: string, callId: string, targetUserId: string, candidate: any) => {
+        if (!spaces.has(spaceId) || !spaceCalls.has(spaceId) || !spaceCalls.get(spaceId)?.has(callId)) return;
         const userId = socket.data.userId;
         if (!userId) return;
-
-        io.to(roomId).emit('ice-candidate', {
+        io.to(`call:${callId}`).emit('ice-candidate', {
             from: userId,
             to: targetUserId,
             candidate: candidate,
         });
     });
 
-    // Additional WebRTC events for better connection management
-    socket.on('connection-request', (roomId: string, targetUserId: string) => {
-        if (!rooms.has(roomId)) return;
+    // --- Additional WebRTC events for connection management, scoped to call ---
 
+    /**
+     * Notify call participants of a connection request.
+     */
+    socket.on('connection-request', (spaceId: string, callId: string, targetUserId: string) => {
+        if (!spaces.has(spaceId) || !spaceCalls.has(spaceId) || !spaceCalls.get(spaceId)?.has(callId)) return;
         const userId = socket.data.userId;
         if (!userId) return;
-
-        io.to(roomId).emit('connection-request', {
+        io.to(`call:${callId}`).emit('connection-request', {
             from: userId,
             to: targetUserId,
         });
     });
 
-    socket.on('connection-accepted', (roomId: string, targetUserId: string) => {
-        if (!rooms.has(roomId)) return;
-
+    /**
+     * Notify call participants of a connection acceptance.
+     */
+    socket.on('connection-accepted', (spaceId: string, callId: string, targetUserId: string) => {
+        if (!spaces.has(spaceId) || !spaceCalls.has(spaceId) || !spaceCalls.get(spaceId)?.has(callId)) return;
         const userId = socket.data.userId;
         if (!userId) return;
-
-        io.to(roomId).emit('connection-accepted', {
+        io.to(`call:${callId}`).emit('connection-accepted', {
             from: userId,
             to: targetUserId,
         });
     });
 
-    socket.on('connection-rejected', (roomId: string, targetUserId: string) => {
-        if (!rooms.has(roomId)) return;
-
+    /**
+     * Notify call participants of a connection rejection.
+     */
+    socket.on('connection-rejected', (spaceId: string, callId: string, targetUserId: string) => {
+        if (!spaces.has(spaceId) || !spaceCalls.has(spaceId) || !spaceCalls.get(spaceId)?.has(callId)) return;
         const userId = socket.data.userId;
         if (!userId) return;
-
-        io.to(roomId).emit('connection-rejected', {
+        io.to(`call:${callId}`).emit('connection-rejected', {
             from: userId,
             to: targetUserId,
         });
     });
 
-    socket.on('connection-closed', (roomId: string, targetUserId: string) => {
-        if (!rooms.has(roomId)) return;
-
+    /**
+     * Notify call participants of a connection closure.
+     */
+    socket.on('connection-closed', (spaceId: string, callId: string, targetUserId: string) => {
+        if (!spaces.has(spaceId) || !spaceCalls.has(spaceId) || !spaceCalls.get(spaceId)?.has(callId)) return;
         const userId = socket.data.userId;
         if (!userId) return;
-
-        io.to(roomId).emit('connection-closed', {
+        io.to(`call:${callId}`).emit('connection-closed', {
             from: userId,
             to: targetUserId,
         });
     });
 
-    // User status events
-    socket.on('user-ready', (roomId: string) => {
-        if (!rooms.has(roomId)) return;
-
+    /**
+     * User status events (ready/busy) scoped to call.
+     */
+    socket.on('user-ready', (spaceId: string, callId: string) => {
+        if (!spaces.has(spaceId) || !spaceCalls.has(spaceId) || !spaceCalls.get(spaceId)?.has(callId)) return;
         const userId = socket.data.userId;
         if (!userId) return;
-
-        io.to(roomId).emit('user-ready', userId);
+        io.to(`call:${callId}`).emit('user-ready', userId);
     });
 
-    socket.on('user-busy', (roomId: string) => {
-        if (!rooms.has(roomId)) return;
-
+    socket.on('user-busy', (spaceId: string, callId: string) => {
+        if (!spaces.has(spaceId) || !spaceCalls.has(spaceId) || !spaceCalls.get(spaceId)?.has(callId)) return;
         const userId = socket.data.userId;
         if (!userId) return;
-
-        io.to(roomId).emit('user-busy', userId);
+        io.to(`call:${callId}`).emit('user-busy', userId);
     });
 
-    // Ping/pong for connection health
+    /**
+     * Ping/pong for connection health.
+     */
     socket.on('ping', () => {
         socket.emit('pong');
     });
 
+    /**
+     * Handle user disconnect. Remove from all calls and notify only relevant call participants.
+     */
     socket.on('disconnect', () => {
         console.log(`Socket disconnected: ${socket.id}`);
-        
+
         const userId = socket.data.userId;
         if (!userId) return;
 
-        const roomId = usersRooms.get(userId);
-        if (!roomId) return;
+        const spaceId = usersSpaces.get(userId);
+        if (!spaceId) return;
 
-        // Remove user from all calls in this room
-        if (roomCalls.has(roomId)) {
-            const roomCallMap = roomCalls.get(roomId);
+        // Remove user from all calls in this space
+        if (spaceCalls.has(spaceId)) {
+            const roomCallMap = spaceCalls.get(spaceId);
             if (roomCallMap) {
                 for (const [callId, users] of roomCallMap.entries()) {
                     if (users.has(userId)) {
@@ -309,7 +324,9 @@ io.on('connection', (socket) => {
                         if (users.size === 0) {
                             roomCallMap.delete(callId);
                         }
-                        io.to(roomId).emit('call-left', callId, userId);
+                        // Notify only call participants
+                        io.to(`call:${callId}`).emit('call-left', callId, userId);
+                        socket.leave(`call:${callId}`);
                     }
                 }
             }
@@ -318,14 +335,13 @@ io.on('connection', (socket) => {
         // Remove user from call tracking
         userCurrentCall.delete(userId);
 
-        rooms.get(roomId)?.delete(userId);
-        usersRooms.delete(userId);
-        socket.leave(roomId);
-        io.to(roomId).emit('user-disconnected', userId);
+        spaces.get(spaceId)?.delete(userId);
+        usersSpaces.delete(userId);
+        socket.leave(spaceId);
+        io.to(spaceId).emit('user-disconnected', userId);
     });
 });
 
 httpServer.listen(process.env.PORT || 3002, () => {
     console.log('Signal Server is running on port 3002');
 });
-
