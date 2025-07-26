@@ -3,7 +3,9 @@ import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState, us
 import Phaser from 'phaser';
 import axios from '@/lib/axios';
 import { isAxiosError } from 'axios';
-import { useWebRTC } from '@/hooks/useWebRTC';
+import { useWebRTC, ProximityUser } from '@/hooks/useWebRTC';
+import VideoBox from './VideoBox';
+import { CallControls } from './CallControls';
 
 // WebSocket message types
 interface WebSocketMessage {
@@ -16,7 +18,11 @@ interface WebSocketMessage {
         | 'movement'
         | 'user-left'
         | 'user-join'
-        | 'proximity-users';
+        | 'proximity-users'
+        | 'proximity-call-created'
+        | 'proximity-call-updated'
+        | 'proximity-calls-merged'
+        | 'user-left-proximity-call';
     payload:
         | JoinPayload
         | MovePayload
@@ -25,7 +31,11 @@ interface WebSocketMessage {
         | MovementPayload
         | UserLeftPayload
         | UserJoinPayload
-        | ProximityUsersPayload;
+        | ProximityUsersPayload
+        | ProximityCallCreatedPayload
+        | ProximityCallUpdatedPayload
+        | ProximityCallsMergedPayload
+        | UserLeftProximityCallPayload;
 }
 
 interface JoinPayload {
@@ -95,14 +105,31 @@ interface SpaceElementData {
     };
 }
 
-interface ProximityUser {
-    userId: string;
-    x: number;
-    y: number;
-}
+
 
 interface ProximityUsersPayload {
     users: ProximityUser[];
+}
+
+interface ProximityCallCreatedPayload {
+    callId: string;
+    participants: string[];
+}
+
+interface ProximityCallUpdatedPayload {
+    callId: string;
+    participants: string[];
+}
+
+interface ProximityCallsMergedPayload {
+    callId: string;
+    participants: string[];
+}
+
+interface UserLeftProximityCallPayload {
+    callId: string;
+    leftUserId: string;
+    remainingParticipants: string[];
 }
 
 // Main game scene class that handles all game logic and rendering
@@ -375,6 +402,27 @@ class MainScene extends Phaser.Scene {
                     case 'proximity-users': // server tells client about all users in proximity
                         // console.log('Proximity users:', data.payload);
                         this.handleProximityUsers(data.payload as ProximityUsersPayload);
+                        break;
+                    case 'proximity-call-created':
+                        console.log('[UserSpaceArena] Received proximity-call-created from game server:', data.payload);
+                        // Forward to React component
+                        console.log('[UserSpaceArena] Emitting proximity-call-created event to React component');
+                        this.events.emit('proximity-call-created', data.payload);
+                        break;
+                    case 'proximity-call-updated':
+                        console.log('[UserSpaceArena] Received proximity-call-updated from game server:', data.payload);
+                        // Forward to React component
+                        this.events.emit('proximity-call-updated', data.payload);
+                        break;
+                    case 'proximity-calls-merged':
+                        console.log('[UserSpaceArena] Received proximity-calls-merged from game server:', data.payload);
+                        // Forward to React component
+                        this.events.emit('proximity-calls-merged', data.payload);
+                        break;
+                    case 'user-left-proximity-call':
+                        console.log('[UserSpaceArena] Received user-left-proximity-call from game server:', data.payload);
+                        // Forward to React component
+                        this.events.emit('user-left-proximity-call', data.payload);
                         break;
                 }
             };
@@ -998,60 +1046,184 @@ class MainScene extends Phaser.Scene {
 // React component that wraps the Phaser game
 const UserSpaceArena = forwardRef<
     { handleDeleteSelected?: () => void; cleanup?: () => Promise<void> },
-    { spaceId: string; userId: string }
+    { 
+        spaceId: string; 
+        userId: string;
+        onCallStatusChange?: (status: {
+            isInCall: boolean;
+            callParticipantsCount: number;
+            proximityUsersCount: number;
+        }) => void;
+    }
 >((props, ref) => {
+    const { 
+        currentCallId, 
+        callParticipants, 
+        proximityUsers,
+        currentCallInfo,
+        audioEnabled,
+        videoEnabled,
+        toggleAudio,
+        toggleVideo,
+        handleProximityUpdate,
+        joinProximityCall,
+        leaveProximityCall
+    } = useWebRTC(props.spaceId, props.userId);
 
-    const [proximityUsers, setProximityUsers] = useState<ProximityUser[]>([]);
+    // State to track when the game is ready
+    const [isGameReady, setIsGameReady] = useState(false);
 
-    const { currentCall, callError, createCall, joinCall, leaveCall, getCurrentCallStatus, getActiveCallsInRoom } =
-        useWebRTC(props.spaceId, props.userId);
+    // Initialize WebRTC when component mounts
+    useEffect(() => {
+        console.log('[UserSpaceArena] Component mounted, initializing WebRTC for space:', props.spaceId, 'user:', props.userId);
+    }, [props.spaceId, props.userId]);
+
+    // Monitor participants and ensure video refs are set up
+    useEffect(() => {
+        console.log('[UserSpaceArena] Participants changed:', callParticipants);
+        callParticipants.forEach(participant => {
+            if (!videoRefs.current[participant.id]) {
+                videoRefs.current[participant.id] = React.createRef() as React.RefObject<HTMLVideoElement>;
+                console.log('[UserSpaceArena] Created video ref for participant:', participant.id);
+            }
+        });
+    }, [callParticipants]);
+
+    // Listen for proximity call events from the game scene
+    useEffect(() => {
+        console.log('[UserSpaceArena] Setting up proximity call event listeners...');
+        console.log('[UserSpaceArena] isGameReady:', isGameReady);
+        console.log('[UserSpaceArena] gameRef.current:', gameRef.current);
+        if (!isGameReady || !gameRef.current) {
+            console.log('[UserSpaceArena] Game not ready or no game ref, skipping event listener setup');
+            return;
+        }
+
+        const scene = gameRef.current.scene.getScene('MainScene');
+        if (!scene) {
+            console.log('[UserSpaceArena] No scene found, skipping event listener setup');
+            return;
+        }
+
+        console.log('[UserSpaceArena] Scene found, setting up event listeners');
+
+        const handleProximityCallCreated = (payload: { callId: string; participants: string[] }) => {
+            console.log('[UserSpaceArena] Received proximity-call-created from scene:', payload);
+            // Forward to useWebRTC hook by calling joinProximityCall
+            console.log('[UserSpaceArena] Calling joinProximityCall with:', payload.callId, props.userId);
+            joinProximityCall(payload.callId, props.userId, payload.participants);
+        };
+
+        const handleProximityCallUpdated = (payload: { callId: string; participants: string[] }) => {
+            console.log('[UserSpaceArena] Received proximity-call-updated from scene:', payload);
+            // Forward to useWebRTC hook by calling joinProximityCall
+            console.log('[UserSpaceArena] Calling joinProximityCall for updated call:', payload.callId, props.userId);
+            joinProximityCall(payload.callId, props.userId, payload.participants);
+        };
+
+        scene.events.on('proximity-call-created', handleProximityCallCreated);
+        scene.events.on('proximity-call-updated', handleProximityCallUpdated);
+
+        console.log('[UserSpaceArena] Event listeners set up successfully');
+
+        return () => {
+            console.log('[UserSpaceArena] Cleaning up proximity call event listeners');
+            scene.events.off('proximity-call-created', handleProximityCallCreated);
+            scene.events.off('proximity-call-updated', handleProximityCallUpdated);
+        };
+    }, [isGameReady, props.userId, joinProximityCall]);
+
+    // Connect video streams to video elements
+    useEffect(() => {
+        // Add a small delay to ensure video elements are rendered
+        const timeoutId = setTimeout(() => {
+            callParticipants.forEach(participant => {
+                const videoElement = videoRefs.current[participant.id]?.current;
+                if (videoElement && participant.stream) {
+                    console.log('[UserSpaceArena] Connecting stream to video element for participant:', participant.id, 'stream:', participant.stream);
+                    videoElement.srcObject = participant.stream;
+                } else if (videoElement && !participant.stream) {
+                    console.log('[UserSpaceArena] No stream for participant:', participant.id);
+                } else if (!videoElement && participant.stream) {
+                    console.log('[UserSpaceArena] No video element for participant:', participant.id, 'stream:', participant.stream);
+                }
+            });
+        }, 100); // 100ms delay
+
+        return () => clearTimeout(timeoutId);
+    }, [callParticipants]);
 
     const gameRef = useRef<Phaser.Game | null>(null);
     // Reference to the main scene
     const sceneRef = useRef<MainScene | null>(null);
-    
-    // Callback to receive proximity data from the game scene
-    const handleProximityUpdate = useCallback((users: ProximityUser[]) => {
-        console.log('Proximity users updated:', users);
-        setProximityUsers(users);
-        
-        // Handle proximity-based call logic
-        handleProximityCallLogic(users);
-    }, []);
 
-    // Handle proximity-based call logic
-    const handleProximityCallLogic = useCallback((users: ProximityUser[]) => {
-        const proximityUserIds = users.map(u => u.userId);
-        
-        console.log('Proximity call logic - Users:', proximityUserIds, 'Current call:', currentCall);
-        
-        if (proximityUserIds.length > 0) {
-            // Users are in proximity - check if we need to create or join a call
-            console.log('Users in proximity:', proximityUserIds);
-            
-            // For now, just create a call if we're not already in one
-            if (!currentCall) {
-                console.log('Creating call for proximity users');
-                createCall();
-            } else {
-                console.log('Already in a call:', currentCall);
+    // --- Video refs for each participant ---
+    const videoRefs = useRef<{ [userId: string]: React.RefObject<HTMLVideoElement> }>({});
+
+    // Ensure a ref exists for each participant
+    useEffect(() => {
+        callParticipants.forEach((participant) => {
+            if (!videoRefs.current[participant.id]) {
+                videoRefs.current[participant.id] = React.createRef() as React.RefObject<HTMLVideoElement>;
             }
-        } else {
-            // No users in proximity - leave call if we're in one
-            if (currentCall) {
-                console.log('Leaving call - no users in proximity');
-                leaveCall();
-            } else {
-                console.log('No users in proximity and not in a call');
+        });
+        // Clean up refs for participants who have left
+        Object.keys(videoRefs.current).forEach((id) => {
+            if (!callParticipants.find((p) => p.id === id)) {
+                delete videoRefs.current[id];
             }
-        }
-    }, [currentCall, createCall, leaveCall]);
+        });
+    }, [callParticipants]);
+
+            // Attach MediaStream to video element when available
+        useEffect(() => {
+            callParticipants.forEach((participant) => {
+                const ref = videoRefs.current[participant.id];
+                if (ref && ref.current && participant.stream instanceof MediaStream) {
+                    if (ref.current.srcObject !== participant.stream) {
+                        ref.current.srcObject = participant.stream;
+                        console.log('[UserSpaceArena] Attached stream to video element for participant', participant.id, participant.stream, ref);
+                        
+                        // Add event listeners to debug video element
+                        const videoElement = ref.current;
+                        videoElement.onloadedmetadata = () => {
+                            console.log('[UserSpaceArena] Video loaded metadata for', participant.id);
+                        };
+                        videoElement.oncanplay = () => {
+                            console.log('[UserSpaceArena] Video can play for', participant.id);
+                        };
+                        videoElement.onerror = (e) => {
+                            console.error('[UserSpaceArena] Video error for', participant.id, e);
+                        };
+                        videoElement.onplay = () => {
+                            console.log('[UserSpaceArena] Video started playing for', participant.id);
+                        };
+                    }
+                } else {
+                    console.log('[UserSpaceArena] No stream to attach for participant', participant.id, participant.stream, ref);
+                }
+            });
+        }, [callParticipants]);
+
+    // Callback to receive proximity data from the game scene
+    const handleProximityUpdateFromScene = useCallback(
+        (users: ProximityUser[]) => {
+            console.log('[UserSpaceArena] Received proximity update from scene:', users);
+            handleProximityUpdate(users);
+        },
+        [handleProximityUpdate],
+    );
 
     // Expose cleanup method through ref
     useImperativeHandle(
         ref,
         () => ({
             cleanup: async () => {
+                // Leave any active proximity call
+                if (currentCallId) {
+                    leaveProximityCall();
+                }
+
                 // Call scene shutdown if it exists
                 if (sceneRef.current) {
                     sceneRef.current.shutdown();
@@ -1067,8 +1239,24 @@ const UserSpaceArena = forwardRef<
                 }
             },
         }),
-        [],
+        [currentCallId, leaveProximityCall],
     );
+
+    useEffect(() => {
+        console.log('[UserSpaceArena] Call ID:', currentCallId);
+        console.log('[UserSpaceArena] Call participants:', callParticipants);
+        console.log('[UserSpaceArena] Proximity users:', proximityUsers);
+        console.log('[UserSpaceArena] Current call info:', currentCallInfo);
+        
+        // Notify parent component of call status changes
+        if (props.onCallStatusChange) {
+            props.onCallStatusChange({
+                isInCall: !!currentCallId,
+                callParticipantsCount: callParticipants.length,
+                proximityUsersCount: proximityUsers.length,
+            });
+        }
+    }, [currentCallId, callParticipants, proximityUsers, currentCallInfo, props.onCallStatusChange]);
 
     // Initialize the game when component mounts
     useEffect(() => {
@@ -1103,7 +1291,8 @@ const UserSpaceArena = forwardRef<
             if (scene) {
                 scene.setSpaceId(props.spaceId);
                 sceneRef.current = scene;
-                scene.events.on('proximity-users', handleProximityUpdate); // Listen for proximity updates from the scene
+                scene.events.on('proximity-users', handleProximityUpdateFromScene); // Listen for proximity updates from the scene
+                setIsGameReady(true); // Mark game as ready
             }
         });
 
@@ -1128,13 +1317,59 @@ const UserSpaceArena = forwardRef<
         }
     }, [props.spaceId]);
 
-    // Log call state changes
-    useEffect(() => {
-        console.log('Call state changed:', { currentCall, callError });
-    }, [currentCall, callError]);
-
     // Render the game container
-    return <div id="game-container" className="w-full h-full overflow-hidden" />;
+    console.log('[UserSpaceArena] Rendering VideoBoxes for callParticipants:', callParticipants);
+    console.log('[UserSpaceArena] Current call ID:', currentCallId);
+    console.log('[UserSpaceArena] Local user ID:', props.userId);
+    console.log('[UserSpaceArena] Local user in participants:', callParticipants.some(p => p.id === props.userId));
+    console.log('[UserSpaceArena] All participant IDs:', callParticipants.map(p => p.id));
+    return (
+        <div className="relative w-full h-full">
+            {/* Video Boxes for Call Participants */}
+            {callParticipants.length > 0 && (
+                <div className="absolute top-4 left-4 right-4 z-30">
+                    <div className="flex flex-row gap-3 flex-wrap justify-start max-w-full">
+                        {callParticipants.map((participant) => {
+                            // Determine variant based on number of participants
+                            let variant: 'small' | 'medium' | 'large' = 'medium';
+                            if (callParticipants.length > 4) {
+                                variant = 'small';
+                            } else if (callParticipants.length === 1) {
+                                variant = 'large';
+                            }
+                            
+                            return (
+                                <VideoBox
+                                    key={participant.id}
+                                    videoRef={videoRefs.current[participant.id]}
+                                    variant={variant}
+                                    avatarUrl={participant.id === props.userId ? "👤" : "👥"}
+                                    videoEnabled={true}
+                                    audioEnabled={true}
+                                    showExpandButton={true}
+                                    participantName={participant.id === props.userId ? "You" : `User ${participant.id.slice(0, 6)}`}
+                                    isLocalUser={participant.id === props.userId}
+                                />
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+            
+            {/* Call Controls */}
+            <CallControls
+                isInCall={!!currentCallId}
+                audioEnabled={audioEnabled}
+                videoEnabled={videoEnabled}
+                onToggleAudio={toggleAudio}
+                onToggleVideo={toggleVideo}
+                onLeaveCall={leaveProximityCall}
+                participantCount={callParticipants.length}
+            />
+            
+            <div id="game-container" className="w-full h-full overflow-hidden" />;
+        </div>
+    );
 });
 
 // Set display name for the component

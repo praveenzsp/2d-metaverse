@@ -25,6 +25,9 @@ interface ArenaBottombarProps {
     onShareScreen: () => void;
     onEditMap: () => void;
     isAdmin?: boolean;
+    isInCall?: boolean;
+    callParticipantsCount?: number;
+    proximityUsersCount?: number;
 }
 
 const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
@@ -35,6 +38,9 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
     onShareScreen,
     onEditMap,
     isAdmin = false,
+    isInCall = false,
+    callParticipantsCount = 0,
+    proximityUsersCount = 0,
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [audioDeviceDropdownOpen, setAudioDeviceDropdownOpen] = useState(false);
@@ -68,6 +74,21 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
             {/* Left section */}
             <div className="flex items-center space-x-4">
                 <span className="font-semibold text-lg">{userName}</span>
+                {(isInCall || proximityUsersCount > 0) && (
+                    <div className="flex items-center gap-2 text-sm">
+                        {isInCall ? (
+                            <div className="flex items-center gap-1 bg-green-600/20 text-green-400 px-2 py-1 rounded">
+                                <span>●</span>
+                                <span>In Call ({callParticipantsCount})</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-1 bg-blue-600/20 text-blue-400 px-2 py-1 rounded">
+                                <span>●</span>
+                                <span>Nearby ({proximityUsersCount})</span>
+                            </div>
+                        )}
+                    </div>
+                )}
                 <div className="w-30 h-full flex items-center justify-center">
                     {/* Always render video element for audio output, but hide it when video is disabled */}
                     <video 

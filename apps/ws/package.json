@@ -13,8 +13,10 @@
   "dependencies": {
     "@repo/db": "workspace:*",
     "@types/jsonwebtoken": "^9.0.9",
+    "@types/uuid": "^10.0.0",
     "@types/ws": "^8.18.1",
     "jsonwebtoken": "^9.0.2",
+    "uuid": "^11.1.0",
     "ws": "^8.18.2"
   }
 }

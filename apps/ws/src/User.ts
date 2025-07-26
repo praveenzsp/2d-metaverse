@@ -1,7 +1,7 @@
 // These are imports - they let us use code from other files
 import { WebSocket } from 'ws';
 import { RoomManager } from './RoomManager';
-import { OutgoingMessage } from './types';
+import { OutgoingMessage, ProximityUser } from './types';
 import prisma from '@repo/db/client';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { JWT_SECRET } from './config';
@@ -26,13 +26,19 @@ export class User {
     }
 
     // get all users who are in the proximity of the user
-    private getAllUsersInProximity = () => {
+    private getAllUsersInProximity = (): ProximityUser[] => {
         const allUsersInSpace = RoomManager.getInstance().rooms.get(this.spaceId!) ?? [];
-        return allUsersInSpace.filter((user) => {
-            const xDiff = Math.abs(user.x - this.x);
-            const yDiff = Math.abs(user.y - this.y);
-            return xDiff <= this.PROXIMITY_CELLS && yDiff <= this.PROXIMITY_CELLS && user.userId !== this.userId;
-        });
+        return allUsersInSpace
+            .filter((user) => {
+                const xDiff = Math.abs(user.x - this.x);
+                const yDiff = Math.abs(user.y - this.y);
+                return xDiff <= this.PROXIMITY_CELLS && yDiff <= this.PROXIMITY_CELLS && user.userId !== this.userId;
+            })
+            .map(user => ({
+                userId: user.userId,
+                x: user.x,
+                y: user.y
+            }));
     };
 
     // This method sets up how the user handles incoming messages
@@ -127,6 +133,9 @@ export class User {
                             },
                         });
                     });
+
+                    // Handle initial proximity update
+                    this.handleProximityUpdate();
                     break;
 
                 case 'move':
@@ -142,6 +151,7 @@ export class User {
                     if ((xDisplacement == 1 && yDisplacement == 0) || (xDisplacement == 0 && yDisplacement == 1)) {
                         this.x = moveX;
                         this.y = moveY;
+                        
                         // Tell everyone about the movement
                         RoomManager.getInstance().broadcast(
                             {
@@ -156,14 +166,8 @@ export class User {
                             this.spaceId!,
                         );
 
-                        this.ws.send(
-                            JSON.stringify({
-                                type: 'proximity-users',
-                                payload: {
-                                    users: this.getAllUsersInProximity(),
-                                },
-                            }),
-                        );
+                        // Handle proximity update after movement
+                        this.handleProximityUpdate();
                         return;
                     }
 
@@ -175,12 +179,74 @@ export class User {
                             y: this.y,
                         },
                     });
+                    break;
 
                 case 'leave':
                     this.destroy();
                     break;
+
+                // New call management messages
+                case 'get-call-info':
+                    this.sendCallInfo();
+                    break;
+
+                case 'leave-proximity-call':
+                    this.leaveCurrentCall();
+                    break;
             }
         });
+    }
+
+    /**
+     * Handle proximity updates and trigger call logic
+     */
+    private handleProximityUpdate() {
+        const proximityUsers = this.getAllUsersInProximity();
+        
+        // Send proximity users to the client
+        this.send({
+            type: 'proximity-users',
+            payload: {
+                users: proximityUsers,
+            },
+        });
+
+        // Handle proximity-based call logic in RoomManager
+        RoomManager.getInstance().handleProximityUpdate(this.userId, proximityUsers);
+    }
+
+    /**
+     * Send current call information to the user
+     */
+    private sendCallInfo() {
+        const callInfo = RoomManager.getInstance().getUserCallInfo(this.userId);
+        if (callInfo) {
+            this.send({
+                type: 'call-info',
+                payload: {
+                    callId: callInfo.callId,
+                    participants: Array.from(callInfo.participants),
+                    spaceId: callInfo.spaceId,
+                    createdAt: callInfo.createdAt,
+                    creatorId: callInfo.creatorId
+                }
+            });
+        } else {
+            this.send({
+                type: 'call-info',
+                payload: null
+            });
+        }
+    }
+
+    /**
+     * Leave current call
+     */
+    private leaveCurrentCall() {
+        const userCallState = RoomManager.getInstance().getUserCallState(this.userId);
+        if (userCallState?.callId) {
+            RoomManager.getInstance().leaveCall(this.userId, userCallState.callId);
+        }
     }
 
     // This method is called when the user disconnects

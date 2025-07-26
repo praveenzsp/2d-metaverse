@@ -19,6 +19,11 @@ export default function SpacePage() {
     const [userId, setUserId] = useState('');
     const [username, setUsername] = useState('User');
     const [spaceName, setSpaceName] = useState('Space');
+    const [callStatus, setCallStatus] = useState({
+        isInCall: false,
+        callParticipantsCount: 0,
+        proximityUsersCount: 0,
+    });
 
     const arenaRef = useRef<{ handleDeleteSelected?: () => void; cleanup?: () => Promise<void> }>(null);
 
@@ -78,7 +83,12 @@ export default function SpacePage() {
                         showExpandButton={true}
                     /> */}
                 </div>
-                <UserSpaceArena ref={arenaRef} spaceId={spaceId} userId={userId} />
+                <UserSpaceArena 
+                    ref={arenaRef} 
+                    spaceId={spaceId} 
+                    userId={userId}
+                    onCallStatusChange={setCallStatus}
+                />
             </div>
 
             <ArenaBottombar
@@ -89,6 +99,9 @@ export default function SpacePage() {
                 onShareScreen={() => {}}
                 onEditMap={() => {}}
                 isAdmin={false}
+                isInCall={callStatus.isInCall}
+                callParticipantsCount={callStatus.callParticipantsCount}
+                proximityUsersCount={callStatus.proximityUsersCount}
             />
         </div>
     );
