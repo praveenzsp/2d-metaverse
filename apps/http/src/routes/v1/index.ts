@@ -61,7 +61,7 @@ router.post('/signin', async (req, res) => {
             return;
         }
 
-        const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET);
+        const token = jwt.sign({ userId: user.id, role: user.role, username: user.username }, JWT_SECRET);
 
         // Set HTTP-only cookie with the JWT token
         res.cookie('auth_token', token, {
