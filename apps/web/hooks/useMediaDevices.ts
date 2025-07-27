@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export default function useMediaDevices(videoRef: React.RefObject<HTMLVideoElement | null>) {

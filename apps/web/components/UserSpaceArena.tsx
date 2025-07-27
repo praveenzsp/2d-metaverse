@@ -1069,6 +1069,7 @@ const UserSpaceArena = forwardRef<
         joinProximityCall,
         leaveProximityCall
     } = useWebRTC(props.spaceId, props.userId);
+    
 
     // State to track when the game is ready
     const [isGameReady, setIsGameReady] = useState(false);
@@ -1327,11 +1328,11 @@ const UserSpaceArena = forwardRef<
         <div className="relative w-full h-full">
             {/* Video Boxes for Call Participants */}
             {callParticipants.length > 0 && (
-                <div className="absolute top-4 left-4 right-4 z-30">
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 right-auto z-30">
                     <div className="flex flex-row gap-3 flex-wrap justify-start max-w-full">
                         {callParticipants.map((participant) => {
                             // Determine variant based on number of participants
-                            let variant: 'small' | 'medium' | 'large' = 'medium';
+                            let variant: 'small' | 'medium' | 'large' = 'large';
                             if (callParticipants.length > 4) {
                                 variant = 'small';
                             } else if (callParticipants.length === 1) {

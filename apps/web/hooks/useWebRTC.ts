@@ -132,21 +132,30 @@ export const useWebRTC = (spaceId: string, userId: string) => {
             })));
         });
 
-        socketRef.current.on('user-left-proximity-call', (payload: { callId: string; leftUserId: string; remainingParticipants: string[] }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        socketRef.current.on('user-left-proximity-call', (payload: any) => {
             console.log('[WebRTC] User left proximity call:', payload);
+
+            // Defensive: If payload is not an object or doesn't have remainingParticipants as array, treat as empty
+            let remainingParticipants: string[] = [];
+            if (payload && typeof payload === 'object' && Array.isArray(payload.remainingParticipants)) {
+                remainingParticipants = payload.remainingParticipants;
+            }
+
             // Include local user in participants list if still in call
-            const allParticipants = [...payload.remainingParticipants];
+            const allParticipants = [...remainingParticipants];
             if (!allParticipants.includes(userId)) {
                 allParticipants.push(userId);
             }
-            setCallParticipants(allParticipants.map((id) => ({ 
+            setCallParticipants(allParticipants.map((id) => ({
                 id,
                 stream: id === userId ? localStreamRef.current : null
             })));
-            
+
             // If current user left, clear call state
-            if (payload.leftUserId === userId) {
+            if (payload && payload.leftUserId === userId) {
                 setCurrentCallId('');
+                currentCallIdRef.current = '';
                 setCurrentCallInfo(null);
             }
         });

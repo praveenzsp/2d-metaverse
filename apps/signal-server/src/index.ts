@@ -135,7 +135,14 @@ io.on('connection', (socket: Socket) => {
                 usersInCall?.delete(userId);
                 socket.leave(callId);
                 socket.emit('proximity-call-left', callId);
-                io.to(callId).emit('user-left-proximity-call', userId);
+                
+                // Send the remaining participants to all users in the call
+                const remainingParticipants = Array.from(usersInCall || []);
+                io.to(callId).emit('user-left-proximity-call', {
+                    callId,
+                    leftUserId: userId,
+                    remainingParticipants
+                });
 
                 // Clean up empty calls
                 if (usersInCall?.size === 0) {

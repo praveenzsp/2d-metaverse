@@ -66,22 +66,6 @@ export default function SpacePage() {
 
             <div className="w-full h-full overflow-hidden">
                 <div className="absolute flex flex-row items-center justify-center  gap-2 left-1/2 transform -translate-x-1/2 p-2">
-                    {/* <VideoBox
-                        videoRef={videoRef}
-                        variant="medium"
-                        avatarUrl={username}
-                        videoEnabled={true}
-                        audioEnabled={true}
-                        showExpandButton={true}
-                    />
-                    <VideoBox
-                        videoRef={videoRef}
-                        variant="medium"
-                        avatarUrl={username}
-                        videoEnabled={true}
-                        audioEnabled={true}
-                        showExpandButton={true}
-                    /> */}
                 </div>
                 <UserSpaceArena 
                     ref={arenaRef} 
@@ -92,6 +76,8 @@ export default function SpacePage() {
             </div>
 
             <ArenaBottombar
+                spaceId={spaceId}
+                userId={userId}
                 userName={username}
                 onChat={() => {}}
                 onLeave={handleLeave}
