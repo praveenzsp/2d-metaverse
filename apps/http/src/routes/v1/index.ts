@@ -73,10 +73,10 @@ router.post('/signin', async (req, res) => {
         });
 
         // Send user info without sensitive data
-        res.status(200).json({ 
+        res.status(200).json({
             userId: user.id,
             role: user.role,
-            message: 'Successfully signed in'
+            message: 'Successfully signed in',
         });
         return;
     } catch (error) {
@@ -96,7 +96,7 @@ router.get('/auth/me', async (req, res) => {
         }
 
         // Verify and decode the token
-        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string, role: string };
+        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
 
         // Get user info from database
         const user = await client.user.findUnique({
@@ -107,7 +107,7 @@ router.get('/auth/me', async (req, res) => {
                 email: true,
                 role: true,
                 // Add other non-sensitive fields you want to return
-            }
+            },
         });
 
         if (!user) {
@@ -120,7 +120,7 @@ router.get('/auth/me', async (req, res) => {
             username: user.username,
             email: user.email,
             role: user.role,
-            token: token
+            token: token,
         });
         return;
     } catch (error) {
@@ -132,7 +132,6 @@ router.get('/auth/me', async (req, res) => {
         return;
     }
 });
-
 
 // Add a signout endpoint to clear the cookie
 router.post('/signout', (req, res) => {
@@ -148,7 +147,7 @@ router.post('/signout', (req, res) => {
 router.get('/elements', async (req: Request, res: Response) => {
     try {
         const elements = await client.element.findMany();
-        res.status(200).json({elements: elements});
+        res.status(200).json({ elements: elements });
         return;
     } catch (error) {
         res.status(400).json({ error: 'Error fetching elements' });
@@ -157,25 +156,50 @@ router.get('/elements', async (req: Request, res: Response) => {
 });
 
 router.get('/avatars', async (req: Request, res: Response) => {
-	try{
-		const avatars = await client.avatar.findMany();
-		res.status(200).json({avatars: avatars});
-		return;
-	}
-	catch(error){
-		res.status(400).json({error: 'Error fetching avatars'});
-		return;
-	}
+    try {
+        const avatars = await client.avatar.findMany();
+        res.status(200).json({ avatars: avatars });
+        return;
+    } catch (error) {
+        res.status(400).json({ error: 'Error fetching avatars' });
+        return;
+    }
 });
 
 router.get('/maps', async (req: Request, res: Response) => {
-    try{
+    try {
         const maps = await client.map.findMany();
-        res.status(200).json({maps: maps});
+        res.status(200).json({ maps: maps });
+        return;
+    } catch (error) {
+        res.status(400).json({ error: 'Error fetching maps' });
         return;
     }
-    catch(error){
-        res.status(400).json({error: 'Error fetching maps'});
+});
+
+
+router.get('/get-all-users-avatars', async (req: Request, res: Response) => {
+    try {
+        const allUsers = await client.user.findMany({
+            include: {
+                avatar: {
+                    select: {
+                        imageUrl: true,
+                    },
+                },
+            },
+        });
+
+        const avatarsUrls = allUsers.map((user) => {
+            return {
+                id: user.id,
+                avatarUrl: user.avatar?.imageUrl || null,
+            }
+        });
+
+        res.status(200).json({ avatarsUrls: avatarsUrls });
+    } catch (error) {
+        res.status(400).json({ error: 'Error fetching space users avatars' });
         return;
     }
 });
