@@ -81,17 +81,15 @@ interface UserJoinPayload {
     y: number;
 }
 
-// Define the structure for objects that can be placed on the grid
 interface GridObject {
-    x: number; // X position in grid coordinates
-    y: number; // Y position in grid coordinates
-    width: number; // Width of the object in grid cells
-    height: number; // Height of the object in grid cells
-    type: string; // Type of the object (e.g., 'tree', 'rock', etc.)
-    sprite: Phaser.GameObjects.GameObject; // The visual representation of the object
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    type: string;
+    sprite: Phaser.GameObjects.GameObject;
 }
 
-// Define the structure for space elements from the API
 interface SpaceElementData {
     id: string;
     x: number;
@@ -104,8 +102,6 @@ interface SpaceElementData {
         static: boolean;
     };
 }
-
-
 
 interface ProximityUsersPayload {
     users: ProximityUser[];
@@ -134,15 +130,14 @@ interface UserLeftProximityCallPayload {
 
 // Main game scene class that handles all game logic and rendering
 class MainScene extends Phaser.Scene {
-    // WebSocket connection
     private ws: WebSocket | null = null;
     private otherPlayers: Map<string, Phaser.GameObjects.Sprite> = new Map();
     private playerId: string | null = null;
 
-    // Player object that can be moved around the grid
+
     private player!: Phaser.GameObjects.Sprite;
 
-    // Keyboard input handler for player movement
+
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
 
     // Constants for grid and game settings
@@ -177,9 +172,8 @@ class MainScene extends Phaser.Scene {
 
     // Load all game assets (images, sprites, etc.)
     preload() {
-        // Load the background tile image that will be used for the grid
+
         this.load.image('gridTile', '/tile1.png');
-        // Load the player sprite sheet
         this.load.spritesheet('dude', '/dude.png', {
             frameWidth: 32,
             frameHeight: 48,
@@ -196,27 +190,20 @@ class MainScene extends Phaser.Scene {
 
     // Initialize the game scene
     async create() {
-        console.log('Starting create method');
-
-        // Create animations for the player
         this.createPlayerAnimations();
 
         // Load the tile image if not already loaded
         if (!this.textures.exists('gridTile')) {
-            console.log('Loading tile image');
             this.load.image('gridTile', '/tile1.png');
             await new Promise<void>((resolve) => {
                 this.load.once('complete', () => {
-                    console.log('Tile image loaded successfully');
                     resolve();
                 });
                 this.load.start();
             });
         } else {
-            console.log('Tile image already loaded');
         }
 
-        // Create the grid lines
         this.createGrid();
 
         // Set up keyboard input for player movement
@@ -349,11 +336,9 @@ class MainScene extends Phaser.Scene {
                 return;
             }
 
-            console.log('Connecting to WebSocket server...');
             this.ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}`);
 
             this.ws.onopen = () => {
-                console.log('WebSocket connected, joining space:', this.spaceId);
                 // Join the space
                 this.ws?.send(
                     JSON.stringify({
@@ -368,59 +353,47 @@ class MainScene extends Phaser.Scene {
 
             this.ws.onmessage = (event) => {
                 const data = JSON.parse(event.data) as WebSocketMessage;
-                console.log('Received WebSocket message:', data);
 
                 switch (data.type) {
                     case 'space-joined': // server tells client that they have joined the space
-                        console.log('Space joined successfully:', data.payload);
                         const spaceJoinedPayload = data.payload as SpaceJoinedPayload;
                         this.playerId = spaceJoinedPayload.userId; // Store the player's ID
                         this.handleSpaceJoined(spaceJoinedPayload);
                         break;
                     case 'user-join': // server tells to all other clients that a new player has joined the space
-                        console.log('New user joined:', data.payload);
                         const userJoinPayload = data.payload as UserJoinPayload;
                         if (userJoinPayload.userId !== this.playerId) {
                             this.handleUserJoined(userJoinPayload);
                         }
                         break;
                     case 'movement': // server tells client that a player has moved
-                        console.log('Player moved:', data.payload);
                         const movementPayload = data.payload as MovementPayload;
                         if (movementPayload.userId !== this.playerId) {
                             this.handlePlayerMovement(movementPayload);
                         }
                         break;
                     case 'user-left': // server tells client that a player has left the space
-                        console.log('User left:', data.payload);
                         this.handleUserLeft(data.payload as UserLeftPayload);
                         break;
                     case 'movement-rejected': // server tells client that a player's movement was rejected
-                        console.log('Movement rejected:', data.payload);
                         this.handleMovementRejected(data.payload as MovePayload);
                         break;
                     case 'proximity-users': // server tells client about all users in proximity
-                        // console.log('Proximity users:', data.payload);
                         this.handleProximityUsers(data.payload as ProximityUsersPayload);
                         break;
                     case 'proximity-call-created':
-                        console.log('[UserSpaceArena] Received proximity-call-created from game server:', data.payload);
                         // Forward to React component
-                        console.log('[UserSpaceArena] Emitting proximity-call-created event to React component');
                         this.events.emit('proximity-call-created', data.payload);
                         break;
                     case 'proximity-call-updated':
-                        console.log('[UserSpaceArena] Received proximity-call-updated from game server:', data.payload);
                         // Forward to React component
                         this.events.emit('proximity-call-updated', data.payload);
                         break;
                     case 'proximity-calls-merged':
-                        console.log('[UserSpaceArena] Received proximity-calls-merged from game server:', data.payload);
                         // Forward to React component
                         this.events.emit('proximity-calls-merged', data.payload);
                         break;
                     case 'user-left-proximity-call':
-                        console.log('[UserSpaceArena] Received user-left-proximity-call from game server:', data.payload);
                         // Forward to React component
                         this.events.emit('user-left-proximity-call', data.payload);
                         break;
@@ -431,16 +404,13 @@ class MainScene extends Phaser.Scene {
                 console.error('WebSocket error:', error);
             };
 
-            this.ws.onclose = () => {
-                console.log('WebSocket connection closed');
-            };
+            this.ws.onclose = () => {};
         } catch (error) {
             console.error('Error fetching auth token:', error);
         }
     }
 
     private handleProximityUsers(payload: ProximityUsersPayload) {
-        // console.log('Proximity users:', payload.users);
         this.proximityUsers = payload.users;
         // Emit the event to the React component
         this.events.emit('proximity-users', payload.users);
@@ -516,7 +486,6 @@ class MainScene extends Phaser.Scene {
     private handlePlayerMovement(payload: MovementPayload) {
         if (!this.scene.isActive()) return;
 
-        console.log('Player movement:', payload);
         const { userId, x, y } = payload;
         const player = this.otherPlayers.get(userId);
         if (player) {
@@ -553,7 +522,6 @@ class MainScene extends Phaser.Scene {
     private handleUserLeft(payload: UserLeftPayload) {
         if (!this.scene.isActive()) return;
 
-        console.log('User left:', payload);
         const { userId } = payload;
         const player = this.otherPlayers.get(userId);
         if (player) {
@@ -563,7 +531,6 @@ class MainScene extends Phaser.Scene {
     }
 
     private handleMovementRejected(payload: MovePayload) {
-        console.log('Movement rejected:', payload);
         const { x, y } = payload;
         // Move player back to the valid position
         this.player.x = x * this.CELL_SIZE + this.CELL_SIZE / 2;
@@ -572,8 +539,6 @@ class MainScene extends Phaser.Scene {
 
     // Create the background tiles
     private createTiles() {
-        console.log('Creating tiles with dimensions:', this.gridWidth, this.gridHeight);
-
         // Destroy existing tiles if they exist
         if (this.backgroundTiles) {
             this.backgroundTiles.destroy();
@@ -591,7 +556,6 @@ class MainScene extends Phaser.Scene {
                 tile.setAlpha(1); // Ensure tile is fully visible
             }
         }
-        console.log('Created individual tiles for each cell');
 
         // Update camera bounds with new dimensions
         const totalWidth = this.gridWidth * this.CELL_SIZE;
@@ -621,7 +585,6 @@ class MainScene extends Phaser.Scene {
             const [width, height] = space.dimensions.split('x').map(Number);
             this.gridWidth = width;
             this.gridHeight = height;
-            console.log('Set grid dimensions:', this.gridWidth, this.gridHeight);
 
             if (space && space.elements && space.elements.length > 0) {
                 // Load each element's image first
@@ -823,7 +786,6 @@ class MainScene extends Phaser.Scene {
 
         // Send movement update to server
         if (this.ws?.readyState === WebSocket.OPEN) {
-            console.log('Sending movement update:', { x: newGridX, y: newGridY });
             this.ws.send(
                 JSON.stringify({
                     type: 'move',
@@ -932,7 +894,6 @@ class MainScene extends Phaser.Scene {
     // Send leave message to server
     private sendLeaveMessage() {
         if (this.ws?.readyState === WebSocket.OPEN && this.spaceId) {
-            console.log('Sending leave message for space:', this.spaceId);
             this.ws.send(
                 JSON.stringify({
                     type: 'leave',
@@ -946,14 +907,11 @@ class MainScene extends Phaser.Scene {
 
     // Clean up WebSocket connection when scene is destroyed
     shutdown() {
-        console.log('Shutting down MainScene...');
-
         // Send leave message to server before closing connection
         this.sendLeaveMessage();
 
         // Close WebSocket connection
         if (this.ws) {
-            console.log('Closing WebSocket connection...');
             this.ws.close();
             this.ws = null;
         }
@@ -1012,8 +970,6 @@ class MainScene extends Phaser.Scene {
         this.isMovingAlongPath = false;
         this.selectedObject = null;
         this.path = [];
-
-        console.log('MainScene shutdown complete');
     }
 
     private createPlayerAnimations() {
@@ -1046,8 +1002,8 @@ class MainScene extends Phaser.Scene {
 // React component that wraps the Phaser game
 const UserSpaceArena = forwardRef<
     { handleDeleteSelected?: () => void; cleanup?: () => Promise<void> },
-    { 
-        spaceId: string; 
+    {
+        spaceId: string;
         userId: string;
         onCallStatusChange?: (status: {
             isInCall: boolean;
@@ -1056,9 +1012,9 @@ const UserSpaceArena = forwardRef<
         }) => void;
     }
 >((props, ref) => {
-    const { 
-        currentCallId, 
-        callParticipants, 
+    const {
+        currentCallId,
+        callParticipants,
         proximityUsers,
         currentCallInfo,
         audioEnabled,
@@ -1067,68 +1023,55 @@ const UserSpaceArena = forwardRef<
         toggleVideo,
         handleProximityUpdate,
         joinProximityCall,
-        leaveProximityCall
+        leaveProximityCall,
     } = useWebRTC(props.spaceId, props.userId);
-    
+
     // Helper function to get unique participants
     const getUniqueParticipants = useCallback(() => {
-        return callParticipants.filter((participant, index, self) => 
-            index === self.findIndex(p => p.id === participant.id)
+        return callParticipants.filter(
+            (participant, index, self) => index === self.findIndex((p) => p.id === participant.id),
         );
     }, [callParticipants]);
 
-    // State to track when the game is ready
     const [isGameReady, setIsGameReady] = useState(false);
 
-    // Initialize WebRTC when component mounts
-    useEffect(() => {
-        console.log('[UserSpaceArena] Component mounted, initializing WebRTC for space:', props.spaceId, 'user:', props.userId);
-    }, [props.spaceId, props.userId]);
 
     // Monitor participants and ensure video refs are set up
     useEffect(() => {
-        console.log('[UserSpaceArena] Participants changed:', callParticipants);
-        
         const uniqueParticipants = getUniqueParticipants();
-        
-        uniqueParticipants.forEach(participant => {
+
+        uniqueParticipants.forEach((participant) => {
             if (!videoRefs.current[participant.id]) {
                 videoRefs.current[participant.id] = React.createRef() as React.RefObject<HTMLVideoElement>;
-                console.log('[UserSpaceArena] Created video ref for participant:', participant.id);
             }
         });
     }, [callParticipants, getUniqueParticipants]);
 
     // Listen for proximity call events from the game scene
     useEffect(() => {
-        console.log('[UserSpaceArena] Setting up proximity call event listeners...');
-        console.log('[UserSpaceArena] isGameReady:', isGameReady);
-        console.log('[UserSpaceArena] gameRef.current:', gameRef.current);
         if (!isGameReady || !gameRef.current) {
-            console.log('[UserSpaceArena] Game not ready or no game ref, skipping event listener setup');
             return;
         }
 
         const scene = gameRef.current.scene.getScene('MainScene');
         if (!scene) {
-            console.log('[UserSpaceArena] No scene found, skipping event listener setup');
             return;
         }
 
-        console.log('[UserSpaceArena] Scene found, setting up event listeners');
-
-        const handleProximityCallCreated = (payload: { callId: string; participants: Array<{ userId: string; username: string }> }) => {
-            console.log('[UserSpaceArena] Received proximity-call-created from scene:', payload);
+        const handleProximityCallCreated = (payload: {
+            callId: string;
+            participants: Array<{ userId: string; username: string }>;
+        }) => {
             // Forward to useWebRTC hook by calling joinProximityCall
-            console.log('[UserSpaceArena] Calling joinProximityCall with:', payload.callId, props.userId);
             // Pass the full participant objects to get usernames
             joinProximityCall(payload.callId, props.userId, payload.participants);
         };
 
-        const handleProximityCallUpdated = (payload: { callId: string; participants: Array<{ userId: string; username: string }> }) => {
-            console.log('[UserSpaceArena] Received proximity-call-updated from scene:', payload);
+        const handleProximityCallUpdated = (payload: {
+            callId: string;
+            participants: Array<{ userId: string; username: string }>;
+        }) => {
             // Forward to useWebRTC hook by calling joinProximityCall
-            console.log('[UserSpaceArena] Calling joinProximityCall for updated call:', payload.callId, props.userId);
             // Pass the full participant objects to get usernames
             joinProximityCall(payload.callId, props.userId, payload.participants);
         };
@@ -1136,10 +1079,7 @@ const UserSpaceArena = forwardRef<
         scene.events.on('proximity-call-created', handleProximityCallCreated);
         scene.events.on('proximity-call-updated', handleProximityCallUpdated);
 
-        console.log('[UserSpaceArena] Event listeners set up successfully');
-
         return () => {
-            console.log('[UserSpaceArena] Cleaning up proximity call event listeners');
             scene.events.off('proximity-call-created', handleProximityCallCreated);
             scene.events.off('proximity-call-updated', handleProximityCallUpdated);
         };
@@ -1149,29 +1089,42 @@ const UserSpaceArena = forwardRef<
     useEffect(() => {
         // Add a small delay to ensure video elements are rendered
         const timeoutId = setTimeout(() => {
-            // Filter out duplicate participants by ID
-            const uniqueParticipants = callParticipants.filter((participant, index, self) => 
-                index === self.findIndex(p => p.id === participant.id)
+            const uniqueParticipants = callParticipants.filter(
+                (participant, index, self) => index === self.findIndex((p) => p.id === participant.id),
             );
-            
-            uniqueParticipants.forEach(participant => {
+
+            uniqueParticipants.forEach((participant) => {
                 const videoElement = videoRefs.current[participant.id]?.current;
                 if (videoElement && participant.stream) {
-                    console.log('[UserSpaceArena] Connecting stream to video element for participant:', participant.id, 'stream:', participant.stream);
                     videoElement.srcObject = participant.stream;
-                } else if (videoElement && !participant.stream) {
-                    console.log('[UserSpaceArena] No stream for participant:', participant.id);
-                } else if (!videoElement && participant.stream) {
-                    console.log('[UserSpaceArena] No video element for participant:', participant.id, 'stream:', participant.stream);
+                }
+                else{
+                    console.warn(`No video element for participant: ${participant.id}`);
                 }
             });
-        }, 100); // 100ms delay
+        }, 100);
 
         return () => clearTimeout(timeoutId);
     }, [callParticipants]);
 
+    // Attach MediaStream to video element when available
+    useEffect(() => {
+        const uniqueParticipants = callParticipants.filter(
+            (participant, index, self) => index === self.findIndex((p) => p.id === participant.id),
+        );
+
+        uniqueParticipants.forEach((participant) => {
+            const ref = videoRefs.current[participant.id];
+            if (ref && ref.current && participant.stream instanceof MediaStream) {
+                if (ref.current.srcObject !== participant.stream) {
+                    ref.current.srcObject = participant.stream;
+                }
+            }
+        });
+    }, [callParticipants]);
+    
     const gameRef = useRef<Phaser.Game | null>(null);
-    // Reference to the main scene
+
     const sceneRef = useRef<MainScene | null>(null);
 
     // --- Video refs for each participant ---
@@ -1180,7 +1133,7 @@ const UserSpaceArena = forwardRef<
     // Ensure a ref exists for each participant
     useEffect(() => {
         const uniqueParticipants = getUniqueParticipants();
-        
+
         uniqueParticipants.forEach((participant) => {
             if (!videoRefs.current[participant.id]) {
                 videoRefs.current[participant.id] = React.createRef() as React.RefObject<HTMLVideoElement>;
@@ -1194,27 +1147,10 @@ const UserSpaceArena = forwardRef<
         });
     }, [callParticipants, getUniqueParticipants]);
 
-            // Attach MediaStream to video element when available
-        useEffect(() => {
-            // Filter out duplicate participants by ID
-            const uniqueParticipants = callParticipants.filter((participant, index, self) => 
-                index === self.findIndex(p => p.id === participant.id)
-            );
-            
-            uniqueParticipants.forEach((participant) => {
-                const ref = videoRefs.current[participant.id];
-                if (ref && ref.current && participant.stream instanceof MediaStream) {
-                    if (ref.current.srcObject !== participant.stream) {
-                        ref.current.srcObject = participant.stream;
-                    }
-                }
-            });
-        }, [callParticipants]);
 
     // Callback to receive proximity data from the game scene
     const handleProximityUpdateFromScene = useCallback(
         (users: ProximityUser[]) => {
-            console.log('[UserSpaceArena] Received proximity update from scene:', users);
             handleProximityUpdate(users);
         },
         [handleProximityUpdate],
@@ -1249,11 +1185,6 @@ const UserSpaceArena = forwardRef<
     );
 
     useEffect(() => {
-        console.log('[UserSpaceArena] Call ID:', currentCallId);
-        console.log('[UserSpaceArena] Call participants:', callParticipants);
-        console.log('[UserSpaceArena] Proximity users:', proximityUsers);
-        console.log('[UserSpaceArena] Current call info:', currentCallInfo);
-        
         // Notify parent component of call status changes
         if (props.onCallStatusChange) {
             props.onCallStatusChange({
@@ -1267,8 +1198,6 @@ const UserSpaceArena = forwardRef<
     // Initialize the game when component mounts
     useEffect(() => {
         if (gameRef.current) return;
-
-        console.log('Creating new Phaser game instance');
 
         // Game configuration
         const config: Phaser.Types.Core.GameConfig = {
@@ -1304,7 +1233,6 @@ const UserSpaceArena = forwardRef<
 
         // Cleanup when component unmounts
         return () => {
-            console.log('Cleaning up Phaser game instance');
             if (sceneRef.current) {
                 sceneRef.current.shutdown();
             }
@@ -1323,7 +1251,6 @@ const UserSpaceArena = forwardRef<
         }
     }, [props.spaceId]);
 
-    
     // Get unique participants to avoid duplicate keys
     const uniqueParticipants = getUniqueParticipants();
 
@@ -1331,11 +1258,11 @@ const UserSpaceArena = forwardRef<
         <div className="relative w-full h-full">
             {/* Video Boxes for Call Participants */}
             {uniqueParticipants.length > 0 && (
-                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 right-auto z-30">
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 right-auto z-30 bg-amber-300">
                     <div className="flex flex-row gap-3 flex-wrap justify-start max-w-full">
                         {/* render video box for current user */}
-                        <VideoBox 
-                            username='You'
+                        <VideoBox
+                            username="You"
                             videoRef={videoRefs.current[props.userId]}
                             variant="large"
                             avatarUrl="👤"
@@ -1347,23 +1274,23 @@ const UserSpaceArena = forwardRef<
                             isLocalUser={true}
                         />
                         {uniqueParticipants.map((participant, index) => {
-                            if(participant.id === props.userId) return null;
+                            if (participant.id === props.userId) return null;
                             let variant: 'small' | 'medium' | 'large' = 'large';
                             if (uniqueParticipants.length > 4) {
                                 variant = 'small';
                             } else if (uniqueParticipants.length === 1) {
                                 variant = 'large';
                             }
-                            
+
                             // Create a unique key combining id and index to prevent duplicates
                             const uniqueKey = `${participant.id}-${index}`;
-                            
+
                             return (
                                 <VideoBox
                                     key={uniqueKey}
                                     videoRef={videoRefs.current[participant.id]}
                                     variant={variant}
-                                    avatarUrl={participant.id === props.userId ? "👤" : "👥"}
+                                    avatarUrl={participant.id === props.userId ? '👤' : '👥'}
                                     videoEnabled={participant.isVideoEnabled}
                                     audioEnabled={participant.isAudioEnabled}
                                     showExpandButton={true}
@@ -1375,7 +1302,6 @@ const UserSpaceArena = forwardRef<
                     </div>
                 </div>
             )}
-            
             {/* Call Controls */}
             <CallControls
                 isInCall={!!currentCallId}
@@ -1386,7 +1312,6 @@ const UserSpaceArena = forwardRef<
                 onLeaveCall={leaveProximityCall}
                 participantCount={uniqueParticipants.length}
             />
-            
             <div id="game-container" className="w-full h-full overflow-hidden" />;
         </div>
     );
