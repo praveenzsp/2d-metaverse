@@ -1342,6 +1342,9 @@ const UserSpaceArena = forwardRef<
                             videoEnabled={videoEnabled}
                             audioEnabled={audioEnabled}
                             showExpandButton={true}
+                            toggleVideo={toggleVideo}
+                            toggleAudio={toggleAudio}
+                            isLocalUser={true}
                         />
                         {uniqueParticipants.map((participant, index) => {
                             if(participant.id === props.userId) return null;

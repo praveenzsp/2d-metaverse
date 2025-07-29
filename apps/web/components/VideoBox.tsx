@@ -11,6 +11,8 @@ interface VideoBoxProps {
     audioEnabled: boolean;
     showExpandButton: boolean;
     isLocalUser?: boolean;
+    toggleVideo?: () => void;
+    toggleAudio?: () => void;
 }
 
 function VideoBox({ 
@@ -21,7 +23,9 @@ function VideoBox({
     videoEnabled, 
     audioEnabled, 
     showExpandButton,
-    isLocalUser = false
+    isLocalUser = false,
+    toggleVideo,
+    toggleAudio
 }: VideoBoxProps) {
     const getVariantClasses = () => {
         switch (variant) {
@@ -57,18 +61,23 @@ function VideoBox({
                                 <User className={`${variant === 'small' ? 'w-4 h-4' : variant === 'medium' ? 'w-6 h-6' : 'w-8 h-8'}`} />
                             </AvatarFallback>
                         </Avatar>
-                        <span className={`text-white text-center ${variant === 'small' ? 'text-xs' : variant === 'medium' ? 'text-sm' : 'text-base'}`}>
-                            {username}
-                        </span>
                     </div>
                 )}
             </div>
 
             {/* Participant Name Overlay */}
+            {!videoEnabled && (
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-100">
+                    <span className={`text-white ${variant === 'small' ? 'text-xs' : 'text-sm'} font-medium`}>
+                        {username}
+                    </span>
+                </div>
+            )}
+
             {videoEnabled && (
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className={`text-muted-foreground ${variant === 'small' ? 'text-xs' : 'text-sm'} font-medium`}>
-                        {username}{isLocalUser && '(you)'}
+                    <span className={`text-white ${variant === 'small' ? 'text-xs' : 'text-sm'} font-medium`}>
+                        {username}
                     </span>
                 </div>
             )}
@@ -76,7 +85,7 @@ function VideoBox({
             {/* Expand Button */}
             {showExpandButton && (
                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button className="p-1 bg-black/50 rounded hover:bg-black/70 transition-colors">
+                    <button className="p-1 bg-black/50 rounded hover:bg-black/70 transition-colors cursor-pointer">
                         <Maximize2 className="w-3 h-3 text-white" />
                     </button>
                 </div>
@@ -85,20 +94,20 @@ function VideoBox({
             {/* Audio/Video Status Indicators */}
             <div className="absolute bottom-2 right-2 flex flex-row gap-1">
                 {/* Audio Status */}
-                <div className={`p-1 rounded-full `}>
+                <div className={`p-1 rounded-full ${isLocalUser ? 'cursor-pointer' : 'cursor-not-allowed'}`} onClick={toggleAudio}>
                     {audioEnabled ? (
-                        <Mic className="w-3 h-3 text-muted-foreground" />
+                        <Mic className="w-3 h-3 text-white" />
                     ) : (
-                        <MicOff className="w-3 h-3 text-muted-foreground" />
+                        <MicOff className="w-3 h-3 text-white" />
                     )}
                 </div>
                 
                 {/* Video Status */}
-                <div className={`p-1 rounded-full `}>
+                <div className={`p-1 rounded-full ${isLocalUser ? 'cursor-pointer' : 'cursor-not-allowed'}`} onClick={toggleVideo}>
                     {videoEnabled ? (
-                        <Video className="w-3 h-3 text-muted-foreground" />
+                        <Video className="w-3 h-3 text-white" />
                     ) : (
-                        <VideoOff className="w-3 h-3 text-muted-foreground" />
+                        <VideoOff className="w-3 h-3 text-white" />
                     )}
                 </div>
             </div>
