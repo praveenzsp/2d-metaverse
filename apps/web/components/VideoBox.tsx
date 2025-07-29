@@ -92,22 +92,22 @@ function VideoBox({
             )}
 
             {/* Audio/Video Status Indicators */}
-            <div className="absolute bottom-2 right-2 flex flex-row gap-1">
+            <div className="absolute bottom-2 right-2 flex flex-row gap-0">
                 {/* Audio Status */}
-                <div className={`p-1 rounded-full ${isLocalUser ? 'cursor-pointer' : 'cursor-not-allowed'}`} onClick={toggleAudio}>
+                <div className={`p-1 ${isLocalUser ? 'cursor-pointer border-[1px] border-gray-200 rounded-l-lg' : 'cursor-not-allowed'}`} onClick={toggleAudio}>
                     {audioEnabled ? (
-                        <Mic className="w-3 h-3 text-white" />
+                        <Mic className="w-4 h-4 text-white" />
                     ) : (
-                        <MicOff className="w-3 h-3 text-white" />
+                        <MicOff className="w-4 h-4 text-white" />
                     )}
                 </div>
                 
                 {/* Video Status */}
-                <div className={`p-1 rounded-full ${isLocalUser ? 'cursor-pointer' : 'cursor-not-allowed'}`} onClick={toggleVideo}>
+                <div className={`p-1  ${isLocalUser ? 'cursor-pointer border-[1px] border-gray-200 rounded-r-lg' : 'cursor-not-allowed'}`} onClick={toggleVideo}>
                     {videoEnabled ? (
-                        <Video className="w-3 h-3 text-white" />
+                        <Video className="w-4 h-4 text-white" />
                     ) : (
-                        <VideoOff className="w-3 h-3 text-white" />
+                        <VideoOff className="w-4 h-4 text-white" />
                     )}
                 </div>
             </div>
