@@ -6,8 +6,10 @@ import { Socket, io } from 'socket.io-client';
 export interface CallParticipant {
     id: string;
     stream?: MediaStream | null;
-    // status: 'busy' | 'free'
+    status: 'busy' | 'free' // if in call status is busy, if not in call status is free
     username: string;
+    isAudioEnabled: boolean; // if audio is enabled or not
+    isVideoEnabled: boolean; // if video is enabled or not
 }
 
 export interface ProximityUser {
@@ -85,7 +87,10 @@ export const useWebRTC = (spaceId: string, userId: string) => {
             const newParticipants = allParticipants.map((participant) => ({ 
                 id: participant.userId,
                 username: participant.username,
-                stream: participant.userId === userId ? localStreamRef.current : null
+                stream: participant.userId === userId ? localStreamRef.current : null,
+                status: 'busy' as const,
+                isAudioEnabled: participant.userId === userId ? audioEnabled : true,
+                isVideoEnabled: participant.userId === userId ? videoEnabled : true
             }));
             console.log('[WebRTC] Setting call participants (proximity-call-created):', newParticipants);
             setCallParticipants(newParticipants);
@@ -105,7 +110,10 @@ export const useWebRTC = (spaceId: string, userId: string) => {
             const newParticipants = allParticipants.map((participant) => ({ 
                 id: participant.userId,
                 username: participant.username,
-                stream: participant.userId === userId ? localStreamRef.current : null
+                stream: participant.userId === userId ? localStreamRef.current : null,
+                status: 'busy' as const,
+                isAudioEnabled: participant.userId === userId ? audioEnabled : true,
+                isVideoEnabled: participant.userId === userId ? videoEnabled : true
             }));
             console.log('[WebRTC] Setting call participants (proximity-call-updated):', newParticipants);
             setCallParticipants(newParticipants);
@@ -140,7 +148,10 @@ export const useWebRTC = (spaceId: string, userId: string) => {
             const newParticipants = allParticipants.map((participant) => ({ 
                 id: participant.userId,
                 username: participant.username,
-                stream: participant.userId === userId ? localStreamRef.current : null
+                stream: participant.userId === userId ? localStreamRef.current : null,
+                status: 'busy' as const,
+                isAudioEnabled: participant.userId === userId ? audioEnabled : true,
+                isVideoEnabled: participant.userId === userId ? videoEnabled : true
             }));
             console.log('[WebRTC] Setting call participants (proximity-calls-merged):', newParticipants);
             setCallParticipants(newParticipants);
@@ -165,7 +176,10 @@ export const useWebRTC = (spaceId: string, userId: string) => {
             setCallParticipants(allParticipants.map((participant) => ({
                 id: participant.userId,
                 username: participant.username,
-                stream: participant.userId === userId ? localStreamRef.current : null
+                stream: participant.userId === userId ? localStreamRef.current : null,
+                status: 'busy' as const,
+                isAudioEnabled: participant.userId === userId ? audioEnabled : true,
+                isVideoEnabled: participant.userId === userId ? videoEnabled : true
             })));
 
             // If current user left, clear call state
@@ -178,7 +192,13 @@ export const useWebRTC = (spaceId: string, userId: string) => {
 
         // Legacy call events (for backward compatibility)
         socketRef.current.on('call-joined', (callId: string, participants: Set<string>) => {
-            setCallParticipants(Array.from(participants).map((userId) => ({ id: userId, username: 'Unknown' })));
+            setCallParticipants(Array.from(participants).map((userId) => ({ 
+                id: userId, 
+                username: 'Unknown',
+                status: 'busy' as const,
+                isAudioEnabled: true,
+                isVideoEnabled: true
+            })));
         });
 
         socketRef.current.on('call-left', (callId: string) => {
@@ -190,7 +210,13 @@ export const useWebRTC = (spaceId: string, userId: string) => {
 
         socketRef.current.on('user-joined', (joinedUserId: string) => {
             //this is the userId of the new user who joined
-            setCallParticipants((prev) => [...prev, { id: joinedUserId, username: 'Unknown' }]);
+            setCallParticipants((prev) => [...prev, { 
+                id: joinedUserId, 
+                username: 'Unknown',
+                status: 'busy' as const,
+                isAudioEnabled: true,
+                isVideoEnabled: true
+            }]);
         });
 
         socketRef.current.on('user-left', (leftUserId: string) => {
@@ -213,7 +239,10 @@ export const useWebRTC = (spaceId: string, userId: string) => {
                 setCallParticipants(allParticipants.map((participant) => ({ 
                     id: participant.userId,
                     username: participant.username,
-                    stream: participant.userId === userId ? localStreamRef.current : null
+                    stream: participant.userId === userId ? localStreamRef.current : null,
+                    status: 'busy' as const,
+                    isAudioEnabled: participant.userId === userId ? audioEnabled : true,
+                    isVideoEnabled: participant.userId === userId ? videoEnabled : true
                 })));
             }
         });
@@ -310,6 +339,29 @@ export const useWebRTC = (spaceId: string, userId: string) => {
             setError(message);
         });
 
+        // Remote user audio/video toggle events
+        socketRef.current.on('remote-audio-toggled', (remoteUserId: string, isEnabled: boolean) => {
+            console.log('[WebRTC] Remote user audio toggled:', remoteUserId, isEnabled);
+            setCallParticipants((prev) => 
+                prev.map((participant) => 
+                    participant.id === remoteUserId 
+                        ? { ...participant, isAudioEnabled: isEnabled }
+                        : participant
+                )
+            );
+        });
+
+        socketRef.current.on('remote-video-toggled', (remoteUserId: string, isEnabled: boolean) => {
+            console.log('[WebRTC] Remote user video toggled:', remoteUserId, isEnabled);
+            setCallParticipants((prev) => 
+                prev.map((participant) => 
+                    participant.id === remoteUserId 
+                        ? { ...participant, isVideoEnabled: isEnabled }
+                        : participant
+                )
+            );
+        });
+
         return socketRef.current;
     };
 
@@ -361,7 +413,14 @@ export const useWebRTC = (spaceId: string, userId: string) => {
                     console.log('[WebRTC] Adding new remote participant with stream', remoteUserId, event.streams[0]);
                     // Try to find username from proximity users or use 'Unknown' as fallback
                     const username = 'Unknown'; // We'll get this from the signaling server
-                    const newParticipants = [...prev, { id: remoteUserId, username, stream: event.streams[0] }];
+                    const newParticipants = [...prev, { 
+                        id: remoteUserId, 
+                        username, 
+                        stream: event.streams[0],
+                        status: 'busy' as const,
+                        isAudioEnabled: true,
+                        isVideoEnabled: true
+                    }];
                     console.log('[WebRTC] ontrack: New participants after adding:', newParticipants);
                     return newParticipants;
                 } else {
@@ -418,7 +477,14 @@ export const useWebRTC = (spaceId: string, userId: string) => {
                 const exists = prev.some((p) => p.id === userId);
                 if (!exists) {
                     console.log('[WebRTC] Adding local participant with stream', userId, stream);
-                    return [...prev, { id: userId, username: 'You', stream }];
+                    return [...prev, { 
+                        id: userId, 
+                        username: 'You', 
+                        stream,
+                        status: 'busy' as const,
+                        isAudioEnabled: audioEnabled,
+                        isVideoEnabled: videoEnabled
+                    }];
                 } else {
                     return prev.map((p) =>
                         p.id === userId ? { ...p, stream } : p
@@ -437,7 +503,22 @@ export const useWebRTC = (spaceId: string, userId: string) => {
             localStreamRef.current.getAudioTracks().forEach((track) => {
                 track.enabled = !track.enabled;
             });
-            setAudioEnabled(!audioEnabled);
+            const newAudioEnabled = !audioEnabled;
+            setAudioEnabled(newAudioEnabled);
+            
+            // Update local participant's audio state in callParticipants
+            setCallParticipants((prev) => 
+                prev.map((participant) => 
+                    participant.id === userId 
+                        ? { ...participant, isAudioEnabled: newAudioEnabled }
+                        : participant
+                )
+            );
+            
+            // Emit audio toggle event to signal server
+            if (socketRef.current?.connected && currentCallIdRef.current) {
+                socketRef.current.emit('audio-toggled', spaceId, currentCallIdRef.current, userId, newAudioEnabled);
+            }
         }
     };
 
@@ -446,9 +527,50 @@ export const useWebRTC = (spaceId: string, userId: string) => {
             localStreamRef.current.getVideoTracks().forEach((track) => {
                 track.enabled = !track.enabled;
             });
-            setVideoEnabled(!videoEnabled);
+            const newVideoEnabled = !videoEnabled;
+            setVideoEnabled(newVideoEnabled);
+            
+            // Update local participant's video state in callParticipants
+            setCallParticipants((prev) => 
+                prev.map((participant) => 
+                    participant.id === userId 
+                        ? { ...participant, isVideoEnabled: newVideoEnabled }
+                        : participant
+                )
+            );
+            
+            // Emit video toggle event to signal server
+            if (socketRef.current?.connected && currentCallIdRef.current) {
+                socketRef.current.emit('video-toggled', spaceId, currentCallIdRef.current, userId, newVideoEnabled);
+            }
         }
     };
+
+    /**
+     * Update a specific participant's audio state
+     */
+    const updateParticipantAudio = useCallback((participantId: string, isEnabled: boolean) => {
+        setCallParticipants((prev) => 
+            prev.map((participant) => 
+                participant.id === participantId 
+                    ? { ...participant, isAudioEnabled: isEnabled }
+                    : participant
+            )
+        );
+    }, []);
+
+    /**
+     * Update a specific participant's video state
+     */
+    const updateParticipantVideo = useCallback((participantId: string, isEnabled: boolean) => {
+        setCallParticipants((prev) => 
+            prev.map((participant) => 
+                participant.id === participantId 
+                    ? { ...participant, isVideoEnabled: isEnabled }
+                    : participant
+            )
+        );
+    }, []);
 
     // Proximity-based call management functions
 
@@ -514,7 +636,10 @@ export const useWebRTC = (spaceId: string, userId: string) => {
                 setCallParticipants(allParticipants.map((participant) => ({ 
                     id: participant.userId,
                     username: participant.username,
-                    stream: participant.userId === userId ? localStreamRef.current : null
+                    stream: participant.userId === userId ? localStreamRef.current : null,
+                    status: 'busy' as const,
+                    isAudioEnabled: participant.userId === userId ? audioEnabled : true,
+                    isVideoEnabled: participant.userId === userId ? videoEnabled : true
                 })));
                 
                 // Create peer connections for remote users
@@ -545,7 +670,14 @@ export const useWebRTC = (spaceId: string, userId: string) => {
                     const hasLocalUser = prev.some(p => p.id === userId);
                     if (!hasLocalUser) {
                         console.log('[WebRTC] Adding local user to participants list');
-                        return [...prev, { id: userId, username: 'You', stream: localStreamRef.current }];
+                        return [...prev, { 
+                            id: userId, 
+                            username: 'You', 
+                            stream: localStreamRef.current,
+                            status: 'busy' as const,
+                            isAudioEnabled: audioEnabled,
+                            isVideoEnabled: videoEnabled
+                        }];
                     }
                     return prev;
                 });
@@ -608,9 +740,21 @@ export const useWebRTC = (spaceId: string, userId: string) => {
 
                 socketRef.current.on('call-created', (callId: string, participants: Set<string>) => {
                     setCurrentCallId(callId);
-                    setCallParticipants(Array.from(participants).map((id) => ({ id, username: 'Unknown' })));
+                    setCallParticipants(Array.from(participants).map((id) => ({ 
+                        id, 
+                        username: 'Unknown',
+                        status: 'busy' as const,
+                        isAudioEnabled: true,
+                        isVideoEnabled: true
+                    })));
                     // add current user to participants list
-                    setCallParticipants((prev) => [...prev, { id: userId, username: 'You' }]);
+                    setCallParticipants((prev) => [...prev, { 
+                        id: userId, 
+                        username: 'You',
+                        status: 'busy' as const,
+                        isAudioEnabled: audioEnabled,
+                        isVideoEnabled: videoEnabled
+                    }]);
                     resolve(callId);
                 });
 
@@ -708,11 +852,14 @@ export const useWebRTC = (spaceId: string, userId: string) => {
                 setCallParticipants(prev => [...prev, { 
                     id: userId, 
                     username: 'You',
-                    stream: localStreamRef.current 
+                    stream: localStreamRef.current,
+                    status: 'busy' as const,
+                    isAudioEnabled: audioEnabled,
+                    isVideoEnabled: videoEnabled
                 }]);
             }
         }
-    }, [currentCallId, callParticipants.length, userId]);
+    }, [currentCallId, callParticipants.length, userId, audioEnabled, videoEnabled]);
 
     return {
         localStream,
@@ -737,5 +884,7 @@ export const useWebRTC = (spaceId: string, userId: string) => {
         handleProximityUpdate,
         joinProximityCall,
         leaveProximityCall,
+        updateParticipantAudio,
+        updateParticipantVideo,
     };
 };

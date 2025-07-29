@@ -18,6 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import useMediaDevices from '@/hooks/useMediaDevices';
 
 interface ArenaBottombarProps {
+    spaceId: string;
+    userId: string;
     userName: string;
     onChat: () => void;
     onLeave: () => void;

@@ -48,15 +48,6 @@ function VideoBox({
                         playsInline
                         muted={isLocalUser}
                         style={{ minHeight: '100px', minWidth: '100px' }}
-                        onLoadedMetadata={(e) => {
-                            console.log('[VideoBox] Video loaded metadata for', username, e.target);
-                        }}
-                        onCanPlay={(e) => {
-                            console.log('[VideoBox] Video can play for', username, e.target);
-                        }}
-                        onError={(e) => {
-                            console.error('[VideoBox] Video error for', username, e);
-                        }}
                     />
                 ) : (
                     <div className="flex flex-col items-center justify-center space-y-2">

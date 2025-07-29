@@ -1206,25 +1206,7 @@ const UserSpaceArena = forwardRef<
                 if (ref && ref.current && participant.stream instanceof MediaStream) {
                     if (ref.current.srcObject !== participant.stream) {
                         ref.current.srcObject = participant.stream;
-                        console.log('[UserSpaceArena] Attached stream to video element for participant', participant.id, participant.stream, ref);
-                        
-                        // Add event listeners to debug video element
-                        const videoElement = ref.current;
-                        videoElement.onloadedmetadata = () => {
-                            console.log('[UserSpaceArena] Video loaded metadata for', participant.id);
-                        };
-                        videoElement.oncanplay = () => {
-                            console.log('[UserSpaceArena] Video can play for', participant.id);
-                        };
-                        videoElement.onerror = (e) => {
-                            console.error('[UserSpaceArena] Video error for', participant.id, e);
-                        };
-                        videoElement.onplay = () => {
-                            console.log('[UserSpaceArena] Video started playing for', participant.id);
-                        };
                     }
-                } else {
-                    console.log('[UserSpaceArena] No stream to attach for participant', participant.id, participant.stream, ref);
                 }
             });
         }, [callParticipants]);
@@ -1341,26 +1323,28 @@ const UserSpaceArena = forwardRef<
         }
     }, [props.spaceId]);
 
-    // Render the game container
-    console.log('[UserSpaceArena] Rendering VideoBoxes for callParticipants:', callParticipants);
-    console.log('[UserSpaceArena] Current call ID:', currentCallId);
-    console.log('[UserSpaceArena] Local user ID:', props.userId);
-    console.log('[UserSpaceArena] Local user in participants:', callParticipants.some(p => p.id === props.userId));
-    console.log('[UserSpaceArena] All participant IDs:', callParticipants.map(p => p.id));
     
     // Get unique participants to avoid duplicate keys
     const uniqueParticipants = getUniqueParticipants();
-    
-    console.log('[UserSpaceArena] Unique participants:', uniqueParticipants);
-    console.log('[UserSpaceArena] Unique participant IDs:', uniqueParticipants.map(p => p.id));
+
     return (
         <div className="relative w-full h-full">
             {/* Video Boxes for Call Participants */}
             {uniqueParticipants.length > 0 && (
                 <div className="absolute top-4 left-1/2 transform -translate-x-1/2 right-auto z-30">
                     <div className="flex flex-row gap-3 flex-wrap justify-start max-w-full">
+                        {/* render video box for current user */}
+                        <VideoBox 
+                            username='You'
+                            videoRef={videoRefs.current[props.userId]}
+                            variant="large"
+                            avatarUrl="👤"
+                            videoEnabled={videoEnabled}
+                            audioEnabled={audioEnabled}
+                            showExpandButton={true}
+                        />
                         {uniqueParticipants.map((participant, index) => {
-                            // Determine variant based on number of participants
+                            if(participant.id === props.userId) return null;
                             let variant: 'small' | 'medium' | 'large' = 'large';
                             if (uniqueParticipants.length > 4) {
                                 variant = 'small';
@@ -1377,8 +1361,8 @@ const UserSpaceArena = forwardRef<
                                     videoRef={videoRefs.current[participant.id]}
                                     variant={variant}
                                     avatarUrl={participant.id === props.userId ? "👤" : "👥"}
-                                    videoEnabled={true}
-                                    audioEnabled={true}
+                                    videoEnabled={participant.isVideoEnabled}
+                                    audioEnabled={participant.isAudioEnabled}
                                     showExpandButton={true}
                                     username={participant.username}
                                     isLocalUser={participant.id === props.userId}

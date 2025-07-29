@@ -239,6 +239,20 @@ io.on('connection', (socket: Socket) => {
         },
     );
 
+    // Handle audio toggling
+    socket.on('audio-toggled', (spaceId: string, callId: string, userId: string, isEnabled: boolean) => {
+        console.log(`[Signal Server] audio-toggled: user ${userId} in call ${callId} (space ${spaceId}) set audio to ${isEnabled}`);
+        // Broadcast to all other users in the call
+        socket.to(callId).emit('remote-audio-toggled', userId, isEnabled);
+    });
+
+    // Handle video toggling
+    socket.on('video-toggled', (spaceId: string, callId: string, userId: string, isEnabled: boolean) => {
+        console.log(`[Signal Server] video-toggled: user ${userId} in call ${callId} (space ${spaceId}) set video to ${isEnabled}`);
+        // Broadcast to all other users in the call
+        socket.to(callId).emit('remote-video-toggled', userId, isEnabled);
+    });
+
     // Error events
     socket.on('call-not-found', (message: string) => {
         console.error('Call not found:', message);
