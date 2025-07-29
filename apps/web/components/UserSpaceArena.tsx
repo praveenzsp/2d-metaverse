@@ -132,6 +132,9 @@ interface UserLeftProximityCallPayload {
 class MainScene extends Phaser.Scene {
     private ws: WebSocket | null = null;
     private otherPlayers: Map<string, Phaser.GameObjects.Sprite> = new Map();
+    private playerUsernames: Map<string, Phaser.GameObjects.Text> = new Map();
+    private mainPlayerUsername: Phaser.GameObjects.Text | null = null;
+    private usernamesData: { id: string; username: string }[] = [];
     private playerId: string | null = null;
 
 
@@ -444,6 +447,18 @@ class MainScene extends Phaser.Scene {
         // Store player's ID
         this.playerId = userId;
 
+        // Create main player username with a temporary value
+        this.createMainPlayerUsername('Loading...');
+        
+        // Try to get the actual username immediately if available
+        const actualUsername = this.getUsernameForPlayer(userId);
+        if (actualUsername !== 'player') {
+            if (this.mainPlayerUsername) {
+                this.mainPlayerUsername.setText(actualUsername);
+                console.log(`Set main player username immediately: ${actualUsername}`);
+            }
+        }
+
         // Create other players that are already in the space
         users.forEach((user) => {
             if (user.id !== this.playerId) {
@@ -481,6 +496,132 @@ class MainScene extends Phaser.Scene {
         player.anims.play('turn');
 
         this.otherPlayers.set(id, player);
+
+        // Create username text above the player
+        this.createPlayerUsername(id, x || 0, y || 0);
+    }
+
+    private createPlayerUsername(id: string, x: number, y: number) {
+        if (!this.scene.isActive()) return;
+
+        // Get username from the React component's avatars data
+        const username = this.getUsernameForPlayer(id);
+        
+        const text = this.add.text(
+            x * this.CELL_SIZE + this.CELL_SIZE / 2,
+            y * this.CELL_SIZE + this.CELL_SIZE / 4, // Position above the player (reduced gap)
+            username,
+            {
+                fontSize: '12px',
+                color: 'white',
+                stroke: 'gray',
+                strokeThickness: 2,
+                fontFamily: 'monospace',
+                padding: {
+                    top: 8,
+                    bottom: 8,
+                    left: 8,
+                    right: 8,
+                },
+            }
+        );
+        
+        text.setOrigin(0.5, 1); // Center horizontally, align to bottom
+        text.setDepth(4); // Above everything else
+        
+        this.playerUsernames.set(id, text);
+    }
+
+    private getUsernameForPlayer(id: string): string {
+        const usernameData = this.usernamesData.find((u: { id: string; username: string }) => u.id === id);
+        return usernameData ? usernameData.username.toLowerCase() : 'player';
+    }
+
+    // Method to set usernames from React component
+    setUsernames(usernames: { id: string; username: string }[]) {
+        this.usernamesData = usernames;
+        
+        // Update existing username texts
+        this.playerUsernames.forEach((text, playerId) => {
+            const usernameData = this.usernamesData.find(u => u.id === playerId);
+            if (usernameData) {
+                text.setText(usernameData.username);
+            }
+        });
+
+        // Update main player username if it exists
+        if (this.mainPlayerUsername && this.playerId) {
+            const mainPlayerUsernameData = this.usernamesData.find(u => u.id === this.playerId);
+            if (mainPlayerUsernameData) {
+                this.mainPlayerUsername.setText(mainPlayerUsernameData.username);
+            } else {
+                this.mainPlayerUsername.setText('Unknown');
+            }
+        }
+    }
+
+
+
+    // Method to create username for the main player
+    createMainPlayerUsername(username: string) {
+        if (!this.scene.isActive() || !this.player) return;
+
+        const text = this.add.text(
+            this.player.x,
+            this.player.y - 10, // Reduced gap to match remote players
+            username,
+            {
+                fontSize: '12px',
+                color: 'white',
+                stroke: 'gray',
+                strokeThickness: 2,
+                fontFamily: 'monospace',
+                padding: {
+                    top: 8,
+                    bottom: 8,
+                    left: 8,
+                    right: 8,
+                },
+            }
+        );
+        
+        text.setOrigin(0.5, 1); // Center horizontally, align to bottom
+        text.setDepth(4); // Above everything else
+        
+        this.mainPlayerUsername = text;
+        
+        // If we have a player ID, try to get the actual username immediately
+        if (this.playerId) {
+            const actualUsername = this.getUsernameForPlayer(this.playerId);
+            if (actualUsername !== 'player') {
+                text.setText(actualUsername);
+            }
+        }
+    }
+
+    // Method to update main player username position
+    updateMainPlayerUsernamePosition() {
+        if (this.mainPlayerUsername && this.player) {
+            this.mainPlayerUsername.x = this.player.x;
+            this.mainPlayerUsername.y = this.player.y - 5; // Reduced gap to match remote players
+        }
+    }
+
+    // Method to update all username font sizes based on camera zoom
+    updateUsernameFontSizes() {
+        const baseFontSize = 12;
+        const zoomFactor = this.cameras.main.zoom;
+        const adjustedFontSize = Math.max(baseFontSize / zoomFactor, 8); // Minimum 8px
+        
+        // Update main player username font size
+        if (this.mainPlayerUsername) {
+            this.mainPlayerUsername.setFontSize(adjustedFontSize);
+        }
+        
+        // Update other players' username font sizes
+        this.playerUsernames.forEach((text) => {
+            text.setFontSize(adjustedFontSize);
+        });
     }
 
     private handlePlayerMovement(payload: MovementPayload) {
@@ -506,6 +647,13 @@ class MainScene extends Phaser.Scene {
             player.x = newX;
             player.y = y * this.CELL_SIZE + this.CELL_SIZE / 2;
 
+            // Update username text position
+            const usernameText = this.playerUsernames.get(userId);
+            if (usernameText) {
+                usernameText.x = newX;
+                usernameText.y = player.y - 5; // Reduced gap to match creation
+            }
+
             // Play turn animation after movement
             this.time.delayedCall(150, () => {
                 // Only play turn animation if the player hasn't moved again
@@ -527,6 +675,13 @@ class MainScene extends Phaser.Scene {
         if (player) {
             player.destroy();
             this.otherPlayers.delete(userId);
+        }
+
+        // Remove username text
+        const usernameText = this.playerUsernames.get(userId);
+        if (usernameText) {
+            usernameText.destroy();
+            this.playerUsernames.delete(userId);
         }
     }
 
@@ -733,6 +888,9 @@ class MainScene extends Phaser.Scene {
             this.backgroundTiles.tilePositionX = this.cameras.main.scrollX;
             this.backgroundTiles.tilePositionY = this.cameras.main.scrollY;
         }
+
+        // Update username font sizes based on camera zoom
+        this.updateUsernameFontSizes();
     }
 
     // Move the player in the specified direction
@@ -783,6 +941,9 @@ class MainScene extends Phaser.Scene {
         // Move player to new position
         this.player.x = newX;
         this.player.y = newY;
+
+        // Update main player username position
+        this.updateMainPlayerUsernamePosition();
 
         // Send movement update to server
         if (this.ws?.readyState === WebSocket.OPEN) {
@@ -928,6 +1089,20 @@ class MainScene extends Phaser.Scene {
             }
         });
         this.otherPlayers.clear();
+
+        // Clear player usernames
+        this.playerUsernames.forEach((text) => {
+            if (text && text.active) {
+                text.destroy();
+            }
+        });
+        this.playerUsernames.clear();
+
+        // Clear main player username
+        if (this.mainPlayerUsername && this.mainPlayerUsername.active) {
+            this.mainPlayerUsername.destroy();
+            this.mainPlayerUsername = null;
+        }
 
         // Clear grid objects
         this.gridObjects.forEach((obj) => {
@@ -1228,6 +1403,15 @@ const UserSpaceArena = forwardRef<
                 sceneRef.current = scene;
                 scene.events.on('proximity-users', handleProximityUpdateFromScene); // Listen for proximity updates from the scene
                 setIsGameReady(true); // Mark game as ready
+                
+                // Pass usernames to the scene if available
+                if (avatarsUrlsRef.current.length > 0) {
+                    const usernames = avatarsUrlsRef.current.map((user) => ({
+                        id: user.id,
+                        username: user.username
+                    }));
+                    scene.setUsernames(usernames);
+                }
             }
         });
 
@@ -1241,6 +1425,7 @@ const UserSpaceArena = forwardRef<
                 gameRef.current = null;
                 sceneRef.current = null;
             }
+
         };
     }, [props.spaceId]);
 
@@ -1251,15 +1436,25 @@ const UserSpaceArena = forwardRef<
         }
     }, [props.spaceId]);
 
-    const avatarsUrlsRef = useRef<{id: string, avatarUrl: string | null}[]>([])
+    const avatarsUrlsRef = useRef<{id: string, username: string, avatarUrl: string | null}[]>([])
+    
     useEffect(()=>{
         const fetchAllUsersAvatars = async()=>{
             const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/get-all-users-avatars`)
             const data = await response.json()
             avatarsUrlsRef.current = data.avatarsUrls
+            
+            // Pass usernames to the game scene if it's ready
+            if (sceneRef.current) {
+                const usernames = data.avatarsUrls.map((user: { id: string; username: string; avatarUrl: string | null }) => ({
+                    id: user.id,
+                    username: user.username
+                }));
+                sceneRef.current.setUsernames(usernames);
+            }
         }
         fetchAllUsersAvatars()
-    },[])
+    },[isGameReady]) // Re-run when game becomes ready
 
     // Get unique participants to avoid duplicate keys
     const uniqueParticipants = getUniqueParticipants();
@@ -1322,7 +1517,7 @@ const UserSpaceArena = forwardRef<
                 onLeaveCall={leaveProximityCall}
                 participantCount={uniqueParticipants.length}
             />
-            <div id="game-container" className="w-full h-full overflow-hidden" />;
+            <div id="game-container" className="w-full h-full overflow-hidden" />
         </div>
     );
 });
