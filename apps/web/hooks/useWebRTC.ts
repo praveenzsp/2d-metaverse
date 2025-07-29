@@ -53,6 +53,8 @@ export const useWebRTC = (spaceId: string, userId: string) => {
         userIdRef.current = userId;
     }, [userId]);
 
+    
+
     const initializeSocket = () => {
         if (socketRef.current?.connected) {
             console.log('[WebRTC] Socket already connected');
@@ -639,9 +641,7 @@ export const useWebRTC = (spaceId: string, userId: string) => {
         }
     }, []);
 
-    /**
-     * Join a proximity call automatically
-     */
+
     const joinProximityCall = useCallback(
         async (callId: string, participantId: string, participants?: Array<{ userId: string; username: string }>) => {
             console.log('[WebRTC] joinProximityCall called with:', callId, participantId);
@@ -760,9 +760,7 @@ export const useWebRTC = (spaceId: string, userId: string) => {
         [spaceId, userId],
     );
 
-    /**
-     * Leave current proximity call
-     */
+
     const leaveProximityCall = useCallback(() => {
         console.log('Leaving proximity call:', currentCallId);
         try {

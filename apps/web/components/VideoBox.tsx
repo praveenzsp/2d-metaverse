@@ -6,7 +6,7 @@ interface VideoBoxProps {
     username: string;
     videoRef: React.RefObject<HTMLVideoElement>;
     variant: 'small' | 'medium' | 'large';
-    avatarUrl: string;
+    avatarUrl: string | null;
     videoEnabled: boolean;
     audioEnabled: boolean;
     showExpandButton: boolean;
@@ -56,7 +56,7 @@ function VideoBox({
                 ) : (
                     <div className="flex flex-col items-center justify-center space-y-2">
                         <Avatar className={`${variant === 'small' ? 'w-8 h-8' : variant === 'medium' ? 'w-12 h-12' : 'w-16 h-16'}`}>
-                            <AvatarImage src={avatarUrl} />
+                            <AvatarImage src={avatarUrl || ''} />
                             <AvatarFallback className="bg-gray-600 text-white">
                                 <User className={`${variant === 'small' ? 'w-4 h-4' : variant === 'medium' ? 'w-6 h-6' : 'w-8 h-8'}`} />
                             </AvatarFallback>

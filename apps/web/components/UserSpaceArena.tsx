@@ -1251,6 +1251,16 @@ const UserSpaceArena = forwardRef<
         }
     }, [props.spaceId]);
 
+    const avatarsUrlsRef = useRef<{id: string, avatarUrl: string | null}[]>([])
+    useEffect(()=>{
+        const fetchAllUsersAvatars = async()=>{
+            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/get-all-users-avatars`)
+            const data = await response.json()
+            avatarsUrlsRef.current = data.avatarsUrls
+        }
+        fetchAllUsersAvatars()
+    },[])
+
     // Get unique participants to avoid duplicate keys
     const uniqueParticipants = getUniqueParticipants();
 
@@ -1265,7 +1275,7 @@ const UserSpaceArena = forwardRef<
                             username="You"
                             videoRef={videoRefs.current[props.userId]}
                             variant="large"
-                            avatarUrl="👤"
+                            avatarUrl={avatarsUrlsRef.current.find((avatar) => avatar.id === props.userId)?.avatarUrl || null}
                             videoEnabled={videoEnabled}
                             audioEnabled={audioEnabled}
                             showExpandButton={true}
@@ -1290,7 +1300,7 @@ const UserSpaceArena = forwardRef<
                                     key={uniqueKey}
                                     videoRef={videoRefs.current[participant.id]}
                                     variant={variant}
-                                    avatarUrl={participant.id === props.userId ? '👤' : '👥'}
+                                    avatarUrl={avatarsUrlsRef.current.find((avatar) => avatar.id === participant.id)?.avatarUrl || null}
                                     videoEnabled={participant.isVideoEnabled}
                                     audioEnabled={participant.isAudioEnabled}
                                     showExpandButton={true}
