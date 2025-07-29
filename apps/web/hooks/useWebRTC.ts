@@ -7,17 +7,19 @@ export interface CallParticipant {
     id: string;
     stream?: MediaStream | null;
     // status: 'busy' | 'free'
+    username: string;
 }
 
 export interface ProximityUser {
     userId: string;
+    username: string;
     x: number;
     y: number;
 }
 
 export interface CallInfo {
     callId: string;
-    participants: string[];
+    participants: Array<{ userId: string; username: string }>;
     spaceId: string;
     createdAt: Date;
     creatorId: string;
@@ -70,66 +72,78 @@ export const useWebRTC = (spaceId: string, userId: string) => {
         });
 
         // Proximity call events
-        socketRef.current.on('proximity-call-created', (payload: { callId: string; participants: string[] }) => {
+        socketRef.current.on('proximity-call-created', (payload: { callId: string; participants: Array<{ userId: string; username: string }> }) => {
             console.log('[WebRTC] Proximity call created event received:', payload);
             setCurrentCallId(payload.callId);
             // Include local user in participants list
             const allParticipants = [...payload.participants];
-            if (!allParticipants.includes(userId)) {
-                allParticipants.push(userId);
+            const localUserExists = allParticipants.some(p => p.userId === userId);
+            if (!localUserExists) {
+                allParticipants.push({ userId, username: 'You' }); // We'll get the actual username from the server
             }
             console.log('[WebRTC] All participants after adding local user:', allParticipants);
-            setCallParticipants(allParticipants.map((id) => ({ 
-                id,
-                stream: id === userId ? localStreamRef.current : null
-            })));
+            const newParticipants = allParticipants.map((participant) => ({ 
+                id: participant.userId,
+                username: participant.username,
+                stream: participant.userId === userId ? localStreamRef.current : null
+            }));
+            console.log('[WebRTC] Setting call participants (proximity-call-created):', newParticipants);
+            setCallParticipants(newParticipants);
             // Automatically join the proximity call
-            joinProximityCall(payload.callId, userId);
+            joinProximityCall(payload.callId, userId, payload.participants);
         });
 
-        socketRef.current.on('proximity-call-updated', (payload: { callId: string; participants: string[] }) => {
+        socketRef.current.on('proximity-call-updated', (payload: { callId: string; participants: Array<{ userId: string; username: string }> }) => {
             console.log('[WebRTC] Proximity call updated:', payload);
             setCurrentCallId(payload.callId);
             // Include local user in participants list
             const allParticipants = [...payload.participants];
-            if (!allParticipants.includes(userId)) {
-                allParticipants.push(userId);
+            const localUserExists = allParticipants.some(p => p.userId === userId);
+            if (!localUserExists) {
+                allParticipants.push({ userId, username: 'You' }); // We'll get the actual username from the server
             }
-            setCallParticipants(allParticipants.map((id) => ({ 
-                id,
-                stream: id === userId ? localStreamRef.current : null
-            })));
+            const newParticipants = allParticipants.map((participant) => ({ 
+                id: participant.userId,
+                username: participant.username,
+                stream: participant.userId === userId ? localStreamRef.current : null
+            }));
+            console.log('[WebRTC] Setting call participants (proximity-call-updated):', newParticipants);
+            setCallParticipants(newParticipants);
             
             // Create peer connections for new remote users
-            allParticipants.forEach((participantId) => {
-                if (participantId !== userId && !peerConnectionsRef.current.has(participantId)) {
-                    console.log('[WebRTC] Creating peer connection for new remote user:', participantId);
-                    const pc = createPeerConnection(participantId);
-                    peerConnectionsRef.current.set(participantId, pc);
+            allParticipants.forEach((participant) => {
+                if (participant.userId !== userId && !peerConnectionsRef.current.has(participant.userId)) {
+                    console.log('[WebRTC] Creating peer connection for new remote user:', participant.userId);
+                    const pc = createPeerConnection(participant.userId);
+                    peerConnectionsRef.current.set(participant.userId, pc);
                     
                     // Create and send offer to remote user
                     pc.createOffer().then((offer) => {
                         pc.setLocalDescription(offer);
-                        socketRef.current?.emit('offer', spaceId, payload.callId, userId, participantId, offer);
+                        socketRef.current?.emit('offer', spaceId, payload.callId, userId, participant.userId, offer);
                     }).catch((error) => {
-                        console.error('[WebRTC] Failed to create offer for new user', participantId, error);
+                        console.error('[WebRTC] Failed to create offer for new user', participant.userId, error);
                     });
                 }
             });
         });
 
-        socketRef.current.on('proximity-calls-merged', (payload: { callId: string; participants: string[] }) => {
+        socketRef.current.on('proximity-calls-merged', (payload: { callId: string; participants: Array<{ userId: string; username: string }> }) => {
             console.log('[WebRTC] Proximity calls merged:', payload);
             setCurrentCallId(payload.callId);
             // Include local user in participants list
             const allParticipants = [...payload.participants];
-            if (!allParticipants.includes(userId)) {
-                allParticipants.push(userId);
+            const localUserExists = allParticipants.some(p => p.userId === userId);
+            if (!localUserExists) {
+                allParticipants.push({ userId, username: 'You' }); // We'll get the actual username from the server
             }
-            setCallParticipants(allParticipants.map((id) => ({ 
-                id,
-                stream: id === userId ? localStreamRef.current : null
-            })));
+            const newParticipants = allParticipants.map((participant) => ({ 
+                id: participant.userId,
+                username: participant.username,
+                stream: participant.userId === userId ? localStreamRef.current : null
+            }));
+            console.log('[WebRTC] Setting call participants (proximity-calls-merged):', newParticipants);
+            setCallParticipants(newParticipants);
         });
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,19 +151,21 @@ export const useWebRTC = (spaceId: string, userId: string) => {
             console.log('[WebRTC] User left proximity call:', payload);
 
             // Defensive: If payload is not an object or doesn't have remainingParticipants as array, treat as empty
-            let remainingParticipants: string[] = [];
+            let remainingParticipants: Array<{ userId: string; username: string }> = [];
             if (payload && typeof payload === 'object' && Array.isArray(payload.remainingParticipants)) {
                 remainingParticipants = payload.remainingParticipants;
             }
 
             // Include local user in participants list if still in call
             const allParticipants = [...remainingParticipants];
-            if (!allParticipants.includes(userId)) {
-                allParticipants.push(userId);
+            const localUserExists = allParticipants.some(p => p.userId === userId);
+            if (!localUserExists) {
+                allParticipants.push({ userId, username: 'You' }); // We'll get the actual username from the server
             }
-            setCallParticipants(allParticipants.map((id) => ({
-                id,
-                stream: id === userId ? localStreamRef.current : null
+            setCallParticipants(allParticipants.map((participant) => ({
+                id: participant.userId,
+                username: participant.username,
+                stream: participant.userId === userId ? localStreamRef.current : null
             })));
 
             // If current user left, clear call state
@@ -162,7 +178,7 @@ export const useWebRTC = (spaceId: string, userId: string) => {
 
         // Legacy call events (for backward compatibility)
         socketRef.current.on('call-joined', (callId: string, participants: Set<string>) => {
-            setCallParticipants(Array.from(participants).map((userId) => ({ id: userId })));
+            setCallParticipants(Array.from(participants).map((userId) => ({ id: userId, username: 'Unknown' })));
         });
 
         socketRef.current.on('call-left', (callId: string) => {
@@ -174,7 +190,7 @@ export const useWebRTC = (spaceId: string, userId: string) => {
 
         socketRef.current.on('user-joined', (joinedUserId: string) => {
             //this is the userId of the new user who joined
-            setCallParticipants((prev) => [...prev, { id: joinedUserId }]);
+            setCallParticipants((prev) => [...prev, { id: joinedUserId, username: 'Unknown' }]);
         });
 
         socketRef.current.on('user-left', (leftUserId: string) => {
@@ -190,12 +206,14 @@ export const useWebRTC = (spaceId: string, userId: string) => {
                 setCurrentCallId(callInfo.callId);
                 // Include local user in participants list
                 const allParticipants = [...callInfo.participants];
-                if (!allParticipants.includes(userId)) {
-                    allParticipants.push(userId);
+                const localUserExists = allParticipants.some(p => p.userId === userId);
+                if (!localUserExists) {
+                    allParticipants.push({ userId, username: 'You' });
                 }
-                setCallParticipants(allParticipants.map((id) => ({ 
-                    id,
-                    stream: id === userId ? localStreamRef.current : null
+                setCallParticipants(allParticipants.map((participant) => ({ 
+                    id: participant.userId,
+                    username: participant.username,
+                    stream: participant.userId === userId ? localStreamRef.current : null
                 })));
             }
         });
@@ -337,14 +355,24 @@ export const useWebRTC = (spaceId: string, userId: string) => {
                 console.warn('[WebRTC] No remote stream object for', remoteUserId);
             }
             setCallParticipants((prev) => {
-                const exists = prev.some((p) => p.id === remoteUserId);
-                if (!exists) {
+                console.log('[WebRTC] ontrack: Current participants before update:', prev);
+                const existingParticipant = prev.find((p) => p.id === remoteUserId);
+                if (!existingParticipant) {
                     console.log('[WebRTC] Adding new remote participant with stream', remoteUserId, event.streams[0]);
-                    return [...prev, { id: remoteUserId, stream: event.streams[0] }];
+                    // Try to find username from proximity users or use 'Unknown' as fallback
+                    const username = 'Unknown'; // We'll get this from the signaling server
+                    const newParticipants = [...prev, { id: remoteUserId, username, stream: event.streams[0] }];
+                    console.log('[WebRTC] ontrack: New participants after adding:', newParticipants);
+                    return newParticipants;
+                } else {
+                    // Update existing participant with stream, but keep their username
+                    console.log('[WebRTC] Updating existing participant with stream', remoteUserId, existingParticipant.username);
+                    const updatedParticipants = prev.map((p) => {
+                        return p.id === remoteUserId ? { ...p, stream: event.streams[0] } : p;
+                    });
+                    console.log('[WebRTC] ontrack: Updated participants:', updatedParticipants);
+                    return updatedParticipants;
                 }
-                return prev.map((p) => {
-                    return p.id === remoteUserId ? { ...p, stream: event.streams[0] } : p;
-                });
             });
         };
 
@@ -390,7 +418,7 @@ export const useWebRTC = (spaceId: string, userId: string) => {
                 const exists = prev.some((p) => p.id === userId);
                 if (!exists) {
                     console.log('[WebRTC] Adding local participant with stream', userId, stream);
-                    return [...prev, { id: userId, stream }];
+                    return [...prev, { id: userId, username: 'You', stream }];
                 } else {
                     return prev.map((p) =>
                         p.id === userId ? { ...p, stream } : p
@@ -447,7 +475,7 @@ export const useWebRTC = (spaceId: string, userId: string) => {
     /**
      * Join a proximity call automatically
      */
-    const joinProximityCall = useCallback(async (callId: string, participantId: string, participants?: string[]) => {
+    const joinProximityCall = useCallback(async (callId: string, participantId: string, participants?: Array<{ userId: string; username: string }>) => {
         console.log('[WebRTC] joinProximityCall called with:', callId, participantId);
         try {
             if (!socketRef.current?.connected) {
@@ -479,33 +507,35 @@ export const useWebRTC = (spaceId: string, userId: string) => {
             if (participants && participants.length > 0) {
                 console.log('[WebRTC] Setting participants from server:', participants);
                 const allParticipants = [...participants];
-                if (!allParticipants.includes(userId)) {
-                    allParticipants.push(userId);
+                const localUserExists = allParticipants.some(p => p.userId === userId);
+                if (!localUserExists) {
+                    allParticipants.push({ userId, username: 'You' });
                 }
-                setCallParticipants(allParticipants.map((id) => ({ 
-                    id,
-                    stream: id === userId ? localStreamRef.current : null
+                setCallParticipants(allParticipants.map((participant) => ({ 
+                    id: participant.userId,
+                    username: participant.username,
+                    stream: participant.userId === userId ? localStreamRef.current : null
                 })));
                 
                 // Create peer connections for remote users
-                allParticipants.forEach((participantId) => {
-                    if (participantId !== userId && !peerConnectionsRef.current.has(participantId)) {
-                        console.log('[WebRTC] Creating peer connection for remote user:', participantId);
-                        const pc = createPeerConnection(participantId);
-                        peerConnectionsRef.current.set(participantId, pc);
+                allParticipants.forEach((participant) => {
+                    if (participant.userId !== userId && !peerConnectionsRef.current.has(participant.userId)) {
+                        console.log('[WebRTC] Creating peer connection for remote user:', participant.userId);
+                        const pc = createPeerConnection(participant.userId);
+                        peerConnectionsRef.current.set(participant.userId, pc);
                         
                         // Create and send offer to remote user
-                        console.log('[WebRTC] Creating offer for remote user:', participantId);
+                        console.log('[WebRTC] Creating offer for remote user:', participant.userId);
                         pc.createOffer().then((offer) => {
-                            console.log('[WebRTC] Offer created successfully for', participantId, offer);
+                            console.log('[WebRTC] Offer created successfully for', participant.userId, offer);
                             pc.setLocalDescription(offer).then(() => {
                                 console.log('[WebRTC] Local description set, sending offer to signal server');
-                                socketRef.current?.emit('offer', spaceId, callId, userId, participantId, offer);
+                                socketRef.current?.emit('offer', spaceId, callId, userId, participant.userId, offer);
                             }).catch((error) => {
-                                console.error('[WebRTC] Failed to set local description for', participantId, error);
+                                console.error('[WebRTC] Failed to set local description for', participant.userId, error);
                             });
                         }).catch((error) => {
-                            console.error('[WebRTC] Failed to create offer for', participantId, error);
+                            console.error('[WebRTC] Failed to create offer for', participant.userId, error);
                         });
                     }
                 });
@@ -515,7 +545,7 @@ export const useWebRTC = (spaceId: string, userId: string) => {
                     const hasLocalUser = prev.some(p => p.id === userId);
                     if (!hasLocalUser) {
                         console.log('[WebRTC] Adding local user to participants list');
-                        return [...prev, { id: userId, stream: localStreamRef.current }];
+                        return [...prev, { id: userId, username: 'You', stream: localStreamRef.current }];
                     }
                     return prev;
                 });
@@ -578,9 +608,9 @@ export const useWebRTC = (spaceId: string, userId: string) => {
 
                 socketRef.current.on('call-created', (callId: string, participants: Set<string>) => {
                     setCurrentCallId(callId);
-                    setCallParticipants(Array.from(participants).map((id) => ({ id })));
+                    setCallParticipants(Array.from(participants).map((id) => ({ id, username: 'Unknown' })));
                     // add current user to participants list
-                    setCallParticipants((prev) => [...prev, { id: userId }]);
+                    setCallParticipants((prev) => [...prev, { id: userId, username: 'You' }]);
                     resolve(callId);
                 });
 
@@ -677,6 +707,7 @@ export const useWebRTC = (spaceId: string, userId: string) => {
                 console.log('[WebRTC] Adding local user to participants list');
                 setCallParticipants(prev => [...prev, { 
                     id: userId, 
+                    username: 'You',
                     stream: localStreamRef.current 
                 }]);
             }

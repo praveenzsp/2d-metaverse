@@ -113,23 +113,23 @@ interface ProximityUsersPayload {
 
 interface ProximityCallCreatedPayload {
     callId: string;
-    participants: string[];
+    participants: Array<{ userId: string; username: string }>;
 }
 
 interface ProximityCallUpdatedPayload {
     callId: string;
-    participants: string[];
+    participants: Array<{ userId: string; username: string }>;
 }
 
 interface ProximityCallsMergedPayload {
     callId: string;
-    participants: string[];
+    participants: Array<{ userId: string; username: string }>;
 }
 
 interface UserLeftProximityCallPayload {
     callId: string;
     leftUserId: string;
-    remainingParticipants: string[];
+    remainingParticipants: Array<{ userId: string; username: string }>;
 }
 
 // Main game scene class that handles all game logic and rendering
@@ -1070,6 +1070,12 @@ const UserSpaceArena = forwardRef<
         leaveProximityCall
     } = useWebRTC(props.spaceId, props.userId);
     
+    // Helper function to get unique participants
+    const getUniqueParticipants = useCallback(() => {
+        return callParticipants.filter((participant, index, self) => 
+            index === self.findIndex(p => p.id === participant.id)
+        );
+    }, [callParticipants]);
 
     // State to track when the game is ready
     const [isGameReady, setIsGameReady] = useState(false);
@@ -1082,13 +1088,16 @@ const UserSpaceArena = forwardRef<
     // Monitor participants and ensure video refs are set up
     useEffect(() => {
         console.log('[UserSpaceArena] Participants changed:', callParticipants);
-        callParticipants.forEach(participant => {
+        
+        const uniqueParticipants = getUniqueParticipants();
+        
+        uniqueParticipants.forEach(participant => {
             if (!videoRefs.current[participant.id]) {
                 videoRefs.current[participant.id] = React.createRef() as React.RefObject<HTMLVideoElement>;
                 console.log('[UserSpaceArena] Created video ref for participant:', participant.id);
             }
         });
-    }, [callParticipants]);
+    }, [callParticipants, getUniqueParticipants]);
 
     // Listen for proximity call events from the game scene
     useEffect(() => {
@@ -1108,17 +1117,19 @@ const UserSpaceArena = forwardRef<
 
         console.log('[UserSpaceArena] Scene found, setting up event listeners');
 
-        const handleProximityCallCreated = (payload: { callId: string; participants: string[] }) => {
+        const handleProximityCallCreated = (payload: { callId: string; participants: Array<{ userId: string; username: string }> }) => {
             console.log('[UserSpaceArena] Received proximity-call-created from scene:', payload);
             // Forward to useWebRTC hook by calling joinProximityCall
             console.log('[UserSpaceArena] Calling joinProximityCall with:', payload.callId, props.userId);
+            // Pass the full participant objects to get usernames
             joinProximityCall(payload.callId, props.userId, payload.participants);
         };
 
-        const handleProximityCallUpdated = (payload: { callId: string; participants: string[] }) => {
+        const handleProximityCallUpdated = (payload: { callId: string; participants: Array<{ userId: string; username: string }> }) => {
             console.log('[UserSpaceArena] Received proximity-call-updated from scene:', payload);
             // Forward to useWebRTC hook by calling joinProximityCall
             console.log('[UserSpaceArena] Calling joinProximityCall for updated call:', payload.callId, props.userId);
+            // Pass the full participant objects to get usernames
             joinProximityCall(payload.callId, props.userId, payload.participants);
         };
 
@@ -1138,7 +1149,12 @@ const UserSpaceArena = forwardRef<
     useEffect(() => {
         // Add a small delay to ensure video elements are rendered
         const timeoutId = setTimeout(() => {
-            callParticipants.forEach(participant => {
+            // Filter out duplicate participants by ID
+            const uniqueParticipants = callParticipants.filter((participant, index, self) => 
+                index === self.findIndex(p => p.id === participant.id)
+            );
+            
+            uniqueParticipants.forEach(participant => {
                 const videoElement = videoRefs.current[participant.id]?.current;
                 if (videoElement && participant.stream) {
                     console.log('[UserSpaceArena] Connecting stream to video element for participant:', participant.id, 'stream:', participant.stream);
@@ -1163,22 +1179,29 @@ const UserSpaceArena = forwardRef<
 
     // Ensure a ref exists for each participant
     useEffect(() => {
-        callParticipants.forEach((participant) => {
+        const uniqueParticipants = getUniqueParticipants();
+        
+        uniqueParticipants.forEach((participant) => {
             if (!videoRefs.current[participant.id]) {
                 videoRefs.current[participant.id] = React.createRef() as React.RefObject<HTMLVideoElement>;
             }
         });
         // Clean up refs for participants who have left
         Object.keys(videoRefs.current).forEach((id) => {
-            if (!callParticipants.find((p) => p.id === id)) {
+            if (!uniqueParticipants.find((p) => p.id === id)) {
                 delete videoRefs.current[id];
             }
         });
-    }, [callParticipants]);
+    }, [callParticipants, getUniqueParticipants]);
 
             // Attach MediaStream to video element when available
         useEffect(() => {
-            callParticipants.forEach((participant) => {
+            // Filter out duplicate participants by ID
+            const uniqueParticipants = callParticipants.filter((participant, index, self) => 
+                index === self.findIndex(p => p.id === participant.id)
+            );
+            
+            uniqueParticipants.forEach((participant) => {
                 const ref = videoRefs.current[participant.id];
                 if (ref && ref.current && participant.stream instanceof MediaStream) {
                     if (ref.current.srcObject !== participant.stream) {
@@ -1324,31 +1347,40 @@ const UserSpaceArena = forwardRef<
     console.log('[UserSpaceArena] Local user ID:', props.userId);
     console.log('[UserSpaceArena] Local user in participants:', callParticipants.some(p => p.id === props.userId));
     console.log('[UserSpaceArena] All participant IDs:', callParticipants.map(p => p.id));
+    
+    // Get unique participants to avoid duplicate keys
+    const uniqueParticipants = getUniqueParticipants();
+    
+    console.log('[UserSpaceArena] Unique participants:', uniqueParticipants);
+    console.log('[UserSpaceArena] Unique participant IDs:', uniqueParticipants.map(p => p.id));
     return (
         <div className="relative w-full h-full">
             {/* Video Boxes for Call Participants */}
-            {callParticipants.length > 0 && (
+            {uniqueParticipants.length > 0 && (
                 <div className="absolute top-4 left-1/2 transform -translate-x-1/2 right-auto z-30">
                     <div className="flex flex-row gap-3 flex-wrap justify-start max-w-full">
-                        {callParticipants.map((participant) => {
+                        {uniqueParticipants.map((participant, index) => {
                             // Determine variant based on number of participants
                             let variant: 'small' | 'medium' | 'large' = 'large';
-                            if (callParticipants.length > 4) {
+                            if (uniqueParticipants.length > 4) {
                                 variant = 'small';
-                            } else if (callParticipants.length === 1) {
+                            } else if (uniqueParticipants.length === 1) {
                                 variant = 'large';
                             }
                             
+                            // Create a unique key combining id and index to prevent duplicates
+                            const uniqueKey = `${participant.id}-${index}`;
+                            
                             return (
                                 <VideoBox
-                                    key={participant.id}
+                                    key={uniqueKey}
                                     videoRef={videoRefs.current[participant.id]}
                                     variant={variant}
                                     avatarUrl={participant.id === props.userId ? "👤" : "👥"}
                                     videoEnabled={true}
                                     audioEnabled={true}
                                     showExpandButton={true}
-                                    participantName={participant.id === props.userId ? "You" : `User ${participant.id.slice(0, 6)}`}
+                                    username={participant.username}
                                     isLocalUser={participant.id === props.userId}
                                 />
                             );
@@ -1365,7 +1397,7 @@ const UserSpaceArena = forwardRef<
                 onToggleAudio={toggleAudio}
                 onToggleVideo={toggleVideo}
                 onLeaveCall={leaveProximityCall}
-                participantCount={callParticipants.length}
+                participantCount={uniqueParticipants.length}
             />
             
             <div id="game-container" className="w-full h-full overflow-hidden" />;

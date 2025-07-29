@@ -3,24 +3,24 @@ import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
 import { Maximize2, Mic, MicOff, Video, VideoOff, User } from 'lucide-react';
 
 interface VideoBoxProps {
+    username: string;
     videoRef: React.RefObject<HTMLVideoElement>;
     variant: 'small' | 'medium' | 'large';
     avatarUrl: string;
     videoEnabled: boolean;
     audioEnabled: boolean;
     showExpandButton: boolean;
-    participantName?: string;
     isLocalUser?: boolean;
 }
 
 function VideoBox({ 
+    username='User',
     videoRef, 
     variant, 
     avatarUrl, 
     videoEnabled, 
     audioEnabled, 
     showExpandButton,
-    participantName = "Participant",
     isLocalUser = false
 }: VideoBoxProps) {
     const getVariantClasses = () => {
@@ -43,19 +43,19 @@ function VideoBox({
                 {videoEnabled ? (
                     <video 
                         ref={videoRef} 
-                        className="w-full h-full object-cover rounded-lg bg-black" 
+                        className="w-full h-full object-cover rounded-lg bg-black translate scale-x-[-1]" 
                         autoPlay 
                         playsInline
                         muted={isLocalUser}
                         style={{ minHeight: '100px', minWidth: '100px' }}
                         onLoadedMetadata={(e) => {
-                            console.log('[VideoBox] Video loaded metadata for', participantName, e.target);
+                            console.log('[VideoBox] Video loaded metadata for', username, e.target);
                         }}
                         onCanPlay={(e) => {
-                            console.log('[VideoBox] Video can play for', participantName, e.target);
+                            console.log('[VideoBox] Video can play for', username, e.target);
                         }}
                         onError={(e) => {
-                            console.error('[VideoBox] Video error for', participantName, e);
+                            console.error('[VideoBox] Video error for', username, e);
                         }}
                     />
                 ) : (
@@ -67,7 +67,7 @@ function VideoBox({
                             </AvatarFallback>
                         </Avatar>
                         <span className={`text-white text-center ${variant === 'small' ? 'text-xs' : variant === 'medium' ? 'text-sm' : 'text-base'}`}>
-                            {participantName}
+                            {username}
                         </span>
                     </div>
                 )}
@@ -75,9 +75,9 @@ function VideoBox({
 
             {/* Participant Name Overlay */}
             {videoEnabled && (
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                    <span className={`text-white ${variant === 'small' ? 'text-xs' : 'text-sm'} font-medium`}>
-                        {participantName} {isLocalUser && '(You)'}
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className={`text-muted-foreground ${variant === 'small' ? 'text-xs' : 'text-sm'} font-medium`}>
+                        {username}{isLocalUser && '(you)'}
                     </span>
                 </div>
             )}
@@ -92,34 +92,25 @@ function VideoBox({
             )}
 
             {/* Audio/Video Status Indicators */}
-            <div className="absolute top-2 left-2 flex flex-col gap-1">
+            <div className="absolute bottom-2 right-2 flex flex-row gap-1">
                 {/* Audio Status */}
-                <div className={`p-1 rounded-full ${audioEnabled ? 'bg-green-500/80' : 'bg-red-500/80'}`}>
+                <div className={`p-1 rounded-full `}>
                     {audioEnabled ? (
-                        <Mic className="w-3 h-3 text-white" />
+                        <Mic className="w-3 h-3 text-muted-foreground" />
                     ) : (
-                        <MicOff className="w-3 h-3 text-white" />
+                        <MicOff className="w-3 h-3 text-muted-foreground" />
                     )}
                 </div>
                 
                 {/* Video Status */}
-                <div className={`p-1 rounded-full ${videoEnabled ? 'bg-green-500/80' : 'bg-red-500/80'}`}>
+                <div className={`p-1 rounded-full `}>
                     {videoEnabled ? (
-                        <Video className="w-3 h-3 text-white" />
+                        <Video className="w-3 h-3 text-muted-foreground" />
                     ) : (
-                        <VideoOff className="w-3 h-3 text-white" />
+                        <VideoOff className="w-3 h-3 text-muted-foreground" />
                     )}
                 </div>
             </div>
-
-            {/* Local User Indicator */}
-            {isLocalUser && (
-                <div className="absolute top-2 left-1/2 transform -translate-x-1/2">
-                    <div className="px-2 py-1 bg-blue-500/80 rounded-full">
-                        <span className="text-white text-xs font-medium">You</span>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
