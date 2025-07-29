@@ -10,6 +10,7 @@ import { JWT_SECRET } from './config';
 export class User {
     // These are properties that every User will have
     public userId: string; // The unique identifier for this user
+    public username: string; // The username of the user
     private spaceId?: string; // The ID of the space/room they're in (optional)
     private x: number; // Their X position in the space
     private y: number; // Their Y position in the space
@@ -19,6 +20,7 @@ export class User {
     // This is the constructor - it runs when we create a new User
     constructor(ws: WebSocket) {
         this.userId = ''; // Will be set after JWT verification
+        this.username = ''; // Will be set after JWT verification
         this.x = 0; // Start at position (0,0)
         this.y = 0;
         this.ws = ws; // Store their WebSocket connection
@@ -36,6 +38,7 @@ export class User {
             })
             .map(user => ({
                 userId: user.userId,
+                username: user.username,
                 x: user.x,
                 y: user.y
             }));
@@ -64,6 +67,7 @@ export class User {
 
                     // Generate a unique connection ID by combining userId with a timestamp
                     this.userId = `${decodedToken.userId}`;
+                    this.username = decodedToken.username as string;
 
                     // Check if the space exists in the database
                     const space = await prisma.space.findFirst({
@@ -96,12 +100,14 @@ export class User {
                         type: 'space-joined',
                         payload: {
                             userId: this.userId,
+                            username: this.username,
                             spawn: {
                                 x: this.x,
                                 y: this.y,
                             },
                             users: existingUsers.map((u) => ({
                                 id: u.userId,
+                                username: u.username,
                                 x: u.x,
                                 y: u.y,
                             })),
@@ -114,6 +120,7 @@ export class User {
                             type: 'user-join',
                             payload: {
                                 userId: this.userId,
+                                username: this.username,
                                 x: this.x,
                                 y: this.y,
                             },
@@ -128,6 +135,7 @@ export class User {
                             type: 'user-join',
                             payload: {
                                 userId: user.userId,
+                                username: user.username,
                                 x: user.x,
                                 y: user.y,
                             },
@@ -158,6 +166,7 @@ export class User {
                                 type: 'movement',
                                 payload: {
                                     userId: this.userId,
+                                    username: this.username,
                                     x: this.x,
                                     y: this.y,
                                 },
@@ -175,6 +184,7 @@ export class User {
                     this.send({
                         type: 'movement-rejected',
                         payload: {
+                            username: this.username,
                             x: this.x,
                             y: this.y,
                         },
@@ -225,7 +235,13 @@ export class User {
                 type: 'call-info',
                 payload: {
                     callId: callInfo.callId,
-                    participants: Array.from(callInfo.participants),
+                    participants: Array.from(callInfo.participants).map(participantId => {
+                        const user = RoomManager.getInstance().findUserById(participantId);
+                        return {
+                            userId: participantId,
+                            username: user?.username || 'Unknown'
+                        };
+                    }),
                     spaceId: callInfo.spaceId,
                     createdAt: callInfo.createdAt,
                     creatorId: callInfo.creatorId
@@ -257,6 +273,7 @@ export class User {
                 type: 'user-left',
                 payload: {
                     userId: this.userId,
+                    username: this.username,
                 },
             },
             this,

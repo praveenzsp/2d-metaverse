@@ -6,6 +6,7 @@ export type OutgoingMessage = {
 // Call state management types
 export interface UserCallState {
 	userId: string;
+	username: string;
 	callId: string | null;
 	proximityUsers: string[];
 	spaceId: string | null;
@@ -19,8 +20,14 @@ export interface CallInfo {
 	creatorId: string;
 }
 
+export interface CallParticipant {
+	userId: string;
+	username: string;
+}
+
 export interface ProximityUser {
 	userId: string;
+	username: string;
 	x: number;
 	y: number;
 }

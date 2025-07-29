@@ -86,8 +86,10 @@ export class RoomManager {
      * Initialize call state for a new user
      */
     public initializeUserCallState(userId: string, spaceId: string) {
+        const user = this.findUserById(userId);
         this.userCallStates.set(userId, {
             userId,
+            username: user?.username || 'Unknown',
             callId: null,
             proximityUsers: [],
             spaceId
@@ -236,7 +238,13 @@ export class RoomManager {
         // Notify all participants about the new call
         this.notifyCallParticipants(callId, 'proximity-call-created', {
             callId,
-            participants: Array.from(callInfo.participants)
+            participants: Array.from(callInfo.participants).map(participantId => {
+                const user = this.findUserById(participantId);
+                return {
+                    userId: participantId,
+                    username: user?.username || 'Unknown'
+                };
+            })
         });
 
         console.log(`[RoomManager] Created proximity call ${callId} with participants:`, Array.from(callInfo.participants));
@@ -270,7 +278,13 @@ export class RoomManager {
         // Notify all participants about the updated call
         this.notifyCallParticipants(callId, 'proximity-call-updated', {
             callId,
-            participants: Array.from(callInfo.participants)
+            participants: Array.from(callInfo.participants).map(participantId => {
+                const user = this.findUserById(participantId);
+                return {
+                    userId: participantId,
+                    username: user?.username || 'Unknown'
+                };
+            })
         });
 
         console.log(`User ${userId} joined proximity call ${callId}`);
@@ -322,7 +336,13 @@ export class RoomManager {
         // Notify all participants about the merged call
         this.notifyCallParticipants(targetCallId, 'proximity-calls-merged', {
             callId: targetCallId,
-            participants: Array.from(targetCall.participants)
+            participants: Array.from(targetCall.participants).map(participantId => {
+                const user = this.findUserById(participantId);
+                return {
+                    userId: participantId,
+                    username: user?.username || 'Unknown'
+                };
+            })
         });
 
         console.log(`Merged calls into ${targetCallId} with participants:`, Array.from(targetCall.participants));
@@ -345,10 +365,18 @@ export class RoomManager {
         }
 
         // Notify remaining participants
+        const leftUser = this.findUserById(userId);
         this.notifyCallParticipants(callId, 'user-left-proximity-call', {
             callId,
             leftUserId: userId,
-            remainingParticipants: Array.from(callInfo.participants)
+            leftUsername: leftUser?.username || 'Unknown',
+            remainingParticipants: Array.from(callInfo.participants).map(participantId => {
+                const user = this.findUserById(participantId);
+                return {
+                    userId: participantId,
+                    username: user?.username || 'Unknown'
+                };
+            })
         });
 
         // Clean up empty calls
@@ -394,7 +422,7 @@ export class RoomManager {
     /**
      * Find user by ID across all rooms
      */
-    private findUserById(userId: string): User | null {
+    public findUserById(userId: string): User | null {
         for (const users of this.rooms.values()) {
             const user = users.find(u => u.userId === userId);
             if (user) return user;
