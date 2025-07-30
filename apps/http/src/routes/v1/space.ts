@@ -360,4 +360,46 @@ spaceRouter.get("/:spaceId", userAuthMiddleware, async (req:Request, res:Respons
 	}
 })
 
+// this route is abt getting all the users in the space
+spaceRouter.get("/users/:spaceId", userAuthMiddleware, async (req:Request, res:Response)=>{
+	const {spaceId} = req.params;
+
+	try{
+		const users = await prisma.userSpace.findMany({
+			where: {spaceId: spaceId},
+			include: {
+				user: {
+					select: {
+						id: true,
+						username: true,
+						avatar: {
+							select: {
+								imageUrl: true,
+							}
+						}
+					}
+				}
+			}
+		})
+
+		if(users.length===0){
+			res.status(200).json({message: "No users in the space"});
+			return;
+		}
+
+		res.status(200).json({users: users.map((user:any)=>({
+			id: user.user.id,
+			username: user.user.username,
+			avatarUrl: user.user.avatar?.imageUrl,
+		}))});
+		return;
+	}
+	catch(error){
+		res.status(400).json({message: "Internal server error"});
+		return;
+	}
+})
+
+
+
 export default spaceRouter;
