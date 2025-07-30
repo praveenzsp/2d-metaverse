@@ -7,7 +7,9 @@ import ArenaTopBar from '@/components/ArenaTopBar';
 import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import axios from '@/lib/axios';
-// import VideoBox from '@/components/VideoBox';
+import ParticipantsSideBar, { Participant } from '@/components/ParticipantsSideBar';
+import ChatSideBar from '@/components/ChatSideBar';
+
 
 const UserSpaceArena = dynamic(() => import('@/components/UserSpaceArena'), { ssr: false });
 
@@ -25,36 +27,117 @@ export default function SpacePage() {
         proximityUsersCount: 0,
     });
 
+    const [participantsSideBarOpen, setParticipantsSideBarOpen] = useState(false);
+    const [chatSideBarOpen, setChatSideBarOpen] = useState(false);
+
+    const [spaceParticipants, setSpaceParticipants] = useState<Participant[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
     const arenaRef = useRef<{ handleDeleteSelected?: () => void; cleanup?: () => Promise<void> }>(null);
 
-    // const videoRef = useRef<HTMLVideoElement | null>(null);
+
 
     useEffect(() => {
-        const fetchUsername = async () => {
-            const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/me`);
-            const username = response.data.username;
-            setUsername(username);
-            setUserId(response.data.userId);
+        const fetchData = async () => {
+            if (!spaceId) return;
+            
+            try {
+                setIsLoading(true);
+                setError(null);
+                
+                // Fetch all data in parallel for better performance
+                const [userResponse, spaceResponse, participantsResponse] = await Promise.all([
+                    axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/me`),
+                    axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/space/${spaceId}`),
+                    axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/space/users/${spaceId}`)
+                ]);
+                
+                setUsername(userResponse.data.username);
+                setUserId(userResponse.data.userId);
+                setSpaceName(spaceResponse.data.name);
+                setSpaceParticipants(participantsResponse.data.users);
+                
+            } catch (err) {
+                console.error('Failed to fetch data:', err);
+                setError('Failed to load space data');
+                setSpaceParticipants([]); // Fallback to empty array
+            } finally {
+                setIsLoading(false);
+            }
         };
-        const fetchSpaceName = async () => {
-            const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/space/${spaceId}`);
-            setSpaceName(response.data.name);
-        };
-        fetchUsername();
-        fetchSpaceName();
+        
+        fetchData();
     }, [spaceId]);
+
+    // Set up a polling mechanism to refresh participants list
+    useEffect(() => {
+        if (!spaceId) return;
+
+        const interval = setInterval(async () => {
+            try {
+                const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/space/users/${spaceId}`);
+                setSpaceParticipants(response.data.users);
+            } catch (error) {
+                console.error('Failed to refresh participants:', error);
+            }
+        }, 5000); // Refresh every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [spaceId]);
+
+
     if (!spaceId) return null;
+
+    if (isLoading) {
+        return (
+            <div className="h-screen w-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading space...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="h-screen w-screen flex items-center justify-center">
+                <div className="text-center">
+                    <p className="text-red-600 mb-4">{error}</p>
+                    <button 
+                        onClick={() => window.location.reload()} 
+                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     const handleLeave = async () => {
         // Clean up the scene before navigating away
         if (arenaRef.current?.cleanup) {
             await arenaRef.current.cleanup();
         }
-
         // Add a small delay to ensure all cleanup is complete
         await new Promise((resolve) => setTimeout(resolve, 200));
-
         router.push('/user/dashboard');
+    };
+
+    const handleParticipantsSidebar = () => {
+        if(chatSideBarOpen){
+            setChatSideBarOpen(false);
+        }
+        setParticipantsSideBarOpen(!participantsSideBarOpen);
+    };
+
+    const handleChatSidebar = () => {
+        if(participantsSideBarOpen){
+            setParticipantsSideBarOpen(false);
+        }
+        setChatSideBarOpen(!chatSideBarOpen);
     };
 
     return (
@@ -73,15 +156,30 @@ export default function SpacePage() {
                     userId={userId}
                     onCallStatusChange={setCallStatus}
                 />
+                {/* Participants Sidebar */}
+                <ParticipantsSideBar
+                    isOpen={participantsSideBarOpen}
+                    onClose={() => setParticipantsSideBarOpen(false)}
+                    participants={spaceParticipants}
+                    currentUserId={userId}
+                />
+                {/* Chat Sidebar */}
+                <ChatSideBar
+                    isOpen={chatSideBarOpen}
+                    onClose={() => setChatSideBarOpen(false)}
+                    messages={[]}
+                    currentUserId={userId}
+                    currentUserName={username}
+                />
             </div>
 
             <ArenaBottombar
                 spaceId={spaceId}
                 userId={userId}
                 userName={username}
-                onChat={() => {}}
+                onChat={handleChatSidebar}
                 onLeave={handleLeave}
-                onParticipants={() => {}}
+                onParticipants={handleParticipantsSidebar}
                 onShareScreen={() => {}}
                 onEditMap={() => {}}
                 isAdmin={false}
