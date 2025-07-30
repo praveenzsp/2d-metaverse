@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import useMediaDevices from '@/hooks/useMediaDevices';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ArenaBottombarProps {
     spaceId: string;
@@ -93,10 +94,10 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
                 )}
                 <div className="w-30 h-full flex items-center justify-center">
                     {/* Always render video element for audio output, but hide it when video is disabled */}
-                    <video 
-                        ref={videoRef} 
-                        className={`w-full h-full rounded-md translate scale-x-[-1] ${!isVideoEnabled ? 'hidden' : ''}`} 
-                        autoPlay 
+                    <video
+                        ref={videoRef}
+                        className={`w-full h-full rounded-md translate scale-x-[-1] ${!isVideoEnabled ? 'hidden' : ''}`}
+                        autoPlay
                     />
                     {!isVideoEnabled && (
                         <div className="w-full min-h-16 bg-black rounded-md flex items-center justify-center">
@@ -104,35 +105,52 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
                         </div>
                     )}
                 </div>
+
                 {!isAdmin && (
                     <>
                         <div className="flex items-center relative audio-dropdown">
-                            <Button
-                                onClick={handleAudioToggle}
-                                className="p-2 rounded-l-full hover:bg-gray-800 transition-colors"
-                                aria-label="Toggle Audio"
-                                variant="outline"
-                                size="icon"
-                            >
-                                {isAudioEnabled ? (
-                                    <Mic className="w-5 h-5" />
-                                ) : (
-                                    <MicOff className="w-5 h-5 text-red-500" />
-                                )}
-                            </Button>
-                            <Button
-                                onClick={() => setAudioDeviceDropdownOpen(!audioDeviceDropdownOpen)}
-                                className="p-2 rounded-r-full hover:bg-gray-800 transition-colors"
-                                aria-label="Audio Device Settings"
-                                variant="outline"
-                                size="icon"
-                            >
-                                {audioDeviceDropdownOpen ? (
-                                    <ChevronUp className="w-5 h-5" />
-                                ) : (
-                                    <ChevronDown className="w-5 h-5" />
-                                )}
-                            </Button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        onClick={handleAudioToggle}
+                                        className="p-2 rounded-l-full hover:bg-gray-800 transition-colors"
+                                        aria-label="Toggle Audio"
+                                        variant="outline"
+                                        size="icon"
+                                    >
+                                        {isAudioEnabled ? (
+                                            <Mic className="w-5 h-5" />
+                                        ) : (
+                                            <MicOff className="w-5 h-5 text-red-500" />
+                                        )}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Toggle Audio</p>
+                                </TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        onClick={() => setAudioDeviceDropdownOpen(!audioDeviceDropdownOpen)}
+                                        className="p-2 rounded-r-full hover:bg-gray-800 transition-colors"
+                                        aria-label="Audio Device Settings"
+                                        variant="outline"
+                                        size="icon"
+                                    >
+                                        {audioDeviceDropdownOpen ? (
+                                            <ChevronUp className="w-5 h-5" />
+                                        ) : (
+                                            <ChevronDown className="w-5 h-5" />
+                                        )}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Audio Device Settings</p>
+                                </TooltipContent>
+                            </Tooltip>
+
                             {audioDeviceDropdownOpen && (
                                 <div className="absolute bottom-full left-0 mb-2 bg-gray-800 rounded-lg p-2 min-w-48">
                                     <Select
@@ -154,32 +172,48 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
                             )}
                         </div>
                         <div className="flex items-center relative video-dropdown">
-                            <Button
-                                onClick={handleVideoToggle}
-                                className="p-2 rounded-l-full hover:bg-gray-800 transition-colors"
-                                aria-label="Toggle Video"
-                                variant="outline"
-                                size="icon"
-                            >
-                                {isVideoEnabled ? (
-                                    <Video className="w-5 h-5" />
-                                ) : (
-                                    <VideoOff className="w-5 h-5 text-red-500" />
-                                )}
-                            </Button>
-                            <Button
-                                onClick={() => setVideoDeviceDropdownOpen(!videoDeviceDropdownOpen)}
-                                className="p-2 rounded-r-full hover:bg-gray-800 transition-colors"
-                                aria-label="Video Device Settings"
-                                variant="outline"
-                                size="icon"
-                            >
-                                {videoDeviceDropdownOpen ? (
-                                    <ChevronUp className="w-5 h-5" />
-                                ) : (
-                                    <ChevronDown className="w-5 h-5" />
-                                )}
-                            </Button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        onClick={handleVideoToggle}
+                                        className="p-2 rounded-l-full hover:bg-gray-800 transition-colors"
+                                        aria-label="Toggle Video"
+                                        variant="outline"
+                                        size="icon"
+                                    >
+                                        {isVideoEnabled ? (
+                                            <Video className="w-5 h-5" />
+                                        ) : (
+                                            <VideoOff className="w-5 h-5 text-red-500" />
+                                        )}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Toggle Video</p>
+                                </TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        onClick={() => setVideoDeviceDropdownOpen(!videoDeviceDropdownOpen)}
+                                        className="p-2 rounded-r-full hover:bg-gray-800 transition-colors"
+                                        aria-label="Video Device Settings"
+                                        variant="outline"
+                                        size="icon"
+                                    >
+                                        {videoDeviceDropdownOpen ? (
+                                            <ChevronUp className="w-5 h-5" />
+                                        ) : (
+                                            <ChevronDown className="w-5 h-5" />
+                                        )}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Video Device Settings</p>
+                                </TooltipContent>
+                            </Tooltip>
+
                             {videoDeviceDropdownOpen && (
                                 <div className="absolute bottom-full left-0 mb-2 bg-gray-800 rounded-lg p-2 min-w-48">
                                     <Select
@@ -201,15 +235,22 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
                             )}
                         </div>
 
-                        <Button
-                            onClick={onShareScreen}
-                            className="p-2 rounded-full hover:bg-gray-800 transition-colors"
-                            aria-label="Share Screen"
-                            variant="outline"
-                            size="icon"
-                        >
-                            <Monitor className="w-5 h-5" />
-                        </Button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    onClick={onShareScreen}
+                                    className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+                                    aria-label="Share Screen"
+                                    variant="outline"
+                                    size="icon"
+                                >
+                                    <Monitor className="w-5 h-5" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Share Screen</p>
+                            </TooltipContent>
+                        </Tooltip>
                     </>
                 )}
             </div>
@@ -217,46 +258,75 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
             {/* Right section */}
             <div className="flex items-center space-x-4">
                 {isAdmin ? (
-                    <Button
-                        onClick={onEditMap}
-                        className="p-2 rounded-full hover:bg-gray-800 transition-colors"
-                        aria-label="Edit Map"
-                        variant="outline"
-                        size="icon"
-                    >
-                        <Edit className="w-5 h-5" />
-                    </Button>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                onClick={onEditMap}
+                                className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+                                aria-label="Edit Map"
+                                variant="outline"
+                                size="icon"
+                            >
+                                <Edit className="w-5 h-5" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Edit Map</p>
+                        </TooltipContent>
+                    </Tooltip>
                 ) : (
                     <>
-                        <Button
-                            onClick={onChat}
-                            className="p-2 rounded-full hover:bg-gray-800 transition-colors"
-                            aria-label="Chat"
-                            variant="outline"
-                            size="icon"
-                        >
-                            <MessageCircle className="w-5 h-5" />
-                        </Button>
-                        <Button
-                            onClick={onParticipants}
-                            className="p-2 rounded-full hover:bg-gray-800 transition-colors"
-                            aria-label="Participants"
-                            variant="outline"
-                            size="icon"
-                        >
-                            <Users className="w-5 h-5" />
-                        </Button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    onClick={onChat}
+                                    className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+                                    aria-label="Chat"
+                                    variant="outline"
+                                    size="icon"
+                                >
+                                    <MessageCircle className="w-5 h-5" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Chat</p>
+                            </TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    onClick={onParticipants}
+                                    className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+                                    aria-label="Participants"
+                                    variant="outline"
+                                    size="icon"
+                                >
+                                    <Users className="w-5 h-5" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Participants</p>
+                            </TooltipContent>
+                        </Tooltip>
                     </>
                 )}
-                <Button
-                    onClick={onLeave}
-                    className="p-2 rounded-full hover:bg-red-700 bg-red-600 transition-colors"
-                    aria-label="Leave Meeting"
-                    variant="destructive"
-                    size="icon"
-                >
-                    <LogOut className="w-5 h-5" />
-                </Button>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            onClick={onLeave}
+                            className="p-2 rounded-full hover:bg-red-700 bg-red-600 transition-colors"
+                            aria-label="Leave Meeting"
+                            variant="destructive"
+                            size="icon"
+                        >
+                            <LogOut className="w-5 h-5" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Exit Space</p>
+                    </TooltipContent>
+                </Tooltip>
             </div>
         </div>
     );
