@@ -114,6 +114,14 @@ export class User {
                         },
                     });
 
+                    //once a new user joined, we need to update userSpace table
+                    await prisma.userSpace.create({
+                        data: {
+                            spaceId: spaceId,
+                            userId: this.userId,
+                        }
+                    })
+
                     // Tell everyone else that a new user joined
                     RoomManager.getInstance().broadcast(
                         {
@@ -193,6 +201,15 @@ export class User {
 
                 case 'leave':
                     this.destroy();
+                    //once a user leaves, we need to update userSpace table
+                    await prisma.userSpace.delete({
+                        where: {
+                            userId_spaceId: {
+                                userId: this.userId,
+                                spaceId: this.spaceId!,
+                            },
+                        },
+                    })
                     break;
 
                 // New call management messages
