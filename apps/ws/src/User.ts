@@ -36,11 +36,11 @@ export class User {
                 const yDiff = Math.abs(user.y - this.y);
                 return xDiff <= this.PROXIMITY_CELLS && yDiff <= this.PROXIMITY_CELLS && user.userId !== this.userId;
             })
-            .map(user => ({
+            .map((user) => ({
                 userId: user.userId,
                 username: user.username,
                 x: user.x,
-                y: user.y
+                y: user.y,
             }));
     };
 
@@ -114,13 +114,23 @@ export class User {
                         },
                     });
 
-                    //once a new user joined, we need to update userSpace table
-                    await prisma.userSpace.create({
-                        data: {
-                            spaceId: spaceId,
+                    // upsert is used to update or create a record
+                    await prisma.userSpace.upsert({
+                        where: {
+                            userId_spaceId: {
+                                userId: this.userId,
+                                spaceId: spaceId,
+                            },
+                        },
+                        update: {
+                            isActive: true, // Reactivate if user rejoins
+                            joinedAt: new Date(), // Update join time
+                        },
+                        create: {
                             userId: this.userId,
-                        }
-                    })
+                            spaceId: spaceId,
+                        },
+                    });
 
                     // Tell everyone else that a new user joined
                     RoomManager.getInstance().broadcast(
@@ -167,7 +177,7 @@ export class User {
                     if ((xDisplacement == 1 && yDisplacement == 0) || (xDisplacement == 0 && yDisplacement == 1)) {
                         this.x = moveX;
                         this.y = moveY;
-                        
+
                         // Tell everyone about the movement
                         RoomManager.getInstance().broadcast(
                             {
@@ -201,15 +211,19 @@ export class User {
 
                 case 'leave':
                     this.destroy();
-                    //once a user leaves, we need to update userSpace table
-                    await prisma.userSpace.delete({
-                        where: {
-                            userId_spaceId: {
-                                userId: this.userId,
-                                spaceId: this.spaceId!,
+                    try {
+                        await prisma.userSpace.delete({
+                            where: {
+                                userId_spaceId: {
+                                    userId: this.userId,
+                                    spaceId: this.spaceId!,
+                                },
                             },
-                        },
-                    })
+                        });
+                    } catch (error) {
+                        // Record doesn't exist, which is fine
+                        console.log('User was not in space or already left');
+                    }
                     break;
 
                 // New call management messages
@@ -229,7 +243,7 @@ export class User {
      */
     private handleProximityUpdate() {
         const proximityUsers = this.getAllUsersInProximity();
-        
+
         // Send proximity users to the client
         this.send({
             type: 'proximity-users',
@@ -252,22 +266,22 @@ export class User {
                 type: 'call-info',
                 payload: {
                     callId: callInfo.callId,
-                    participants: Array.from(callInfo.participants).map(participantId => {
+                    participants: Array.from(callInfo.participants).map((participantId) => {
                         const user = RoomManager.getInstance().findUserById(participantId);
                         return {
                             userId: participantId,
-                            username: user?.username || 'Unknown'
+                            username: user?.username || 'Unknown',
                         };
                     }),
                     spaceId: callInfo.spaceId,
                     createdAt: callInfo.createdAt,
-                    creatorId: callInfo.creatorId
-                }
+                    creatorId: callInfo.creatorId,
+                },
             });
         } else {
             this.send({
                 type: 'call-info',
-                payload: null
+                payload: null,
             });
         }
     }
