@@ -8,47 +8,59 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// User model represents the application users with authentication details
-// A user can create and manage multiple virtual spaces in the metaverse
-// Each user must have an avatar to represent themselves
+
 model User {
   id       String  @id @unique @default(cuid())
   username String  @unique
   email    String  @unique
   password String
-  avatarId String?  // Reference to the user's avatar
-  role     Role    // User role (Admin or regular User)
-  spaces   Space[] // List of all spaces created by this user
-  avatar   Avatar? @relation(fields: [avatarId], references: [id])  // The avatar representing this user
+  avatarId String?  
+  role     Role    
+  spaces   UserSpace[] 
+  avatar   Avatar? @relation(fields: [avatarId], references: [id])  
+  chatMessages ChatMessage[]
+  createdSpaces Space[]
 }
 
-// Space model represents a virtual space/room in the metaverse
-// Each space is created by a user and can contain multiple elements placed at different positions
+
 model Space {
   id        String  @id @unique @default(cuid())
   name      String
   width     Int
   height    Int?
-  thumbnail String?  // Optional thumbnail image for the space
+  thumbnail String?  
   creatorId   String
-  creator     User    @relation(fields: [creatorId], references: [id])  // The user who created this space
-  elements spaceElements[] // All elements placed in this space with their positions
+  creator     User    @relation(fields: [creatorId], references: [id])  
+  elements spaceElements[] 
+  chatMessages ChatMessage[]
+  users UserSpace[]
 }
 
-// Tracks where each element is placed within a space
-// This allows the same element to be used in multiple spaces at different positions
+
+model UserSpace {
+  id        String   @id @unique @default(cuid())
+  userId    String
+  spaceId   String
+  joinedAt  DateTime @default(now())
+  isActive  Boolean  @default(true)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  space     Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, spaceId])
+}
+
+
 model spaceElements {
   id        String @id @unique @default(cuid())
   elementId String
   spaceId   String
-  x         Int    // X coordinate of the element in the space
-  y         Int    // Y coordinate of the element in the space
+  x         Int    
+  y         Int    
   space     Space   @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   element   Element @relation(fields: [elementId], references: [id])
 }
 
-// Element model represents reusable visual components (like furniture, decorations, etc.)
-// The same element can be placed in multiple spaces and maps at different positions
+
 model Element {
   id       String @id @unique @default(cuid())
   name     String
@@ -56,45 +68,49 @@ model Element {
   height   Int
   static   Boolean
   imageUrl String
-  spaces spaceElements[] // All spaces where this element is placed
-  mapElements MapElements[] // All maps where this element is placed
+  spaces spaceElements[] 
+  mapElements MapElements[] 
 }
 
-// Map model represents a collection of elements arranged in a specific layout
-// A map can contain multiple elements placed at different positions
+
 model Map {
   id     String  @id @unique @default(cuid())
   width  Int
   height Int
   name   String
   thumbnail String
-  mapElements MapElements[] // All elements placed in this map with their positions
+  mapElements MapElements[] 
 }
 
-// Tracks where each element is placed within a map
-// This allows the same element to be used in multiple maps at different positions
+
 model MapElements {
   id        String  @id @unique @default(cuid())
   mapId     String
   elementId String
-  x         Int?    // Optional X coordinate of the element in the map
-  y         Int?    // Optional Y coordinate of the element in the map
+  x         Int?    
+  y         Int?    
   map       Map     @relation(fields: [mapId], references: [id], onDelete: Cascade)
   element   Element @relation(fields: [elementId], references: [id])
 }
 
-// Avatar model represents user avatars in the metaverse
-// Each avatar can be used by multiple users to represent themselves
-// For example, multiple users might choose the same avatar style
+
 model Avatar {
   id       String  @id @unique @default(cuid())
-  imageUrl String? // URL to the avatar image
-  name     String? // Optional name for the avatar
-  users    User[]  // List of users who have chosen this avatar
+  imageUrl String? 
+  name     String? 
+  users    User[] 
 }
 
-// Defines the access levels for users in the system
-// Admins have full control while regular users have limited permissions
+model ChatMessage {
+  id        String   @id @unique @default(cuid())
+  message   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  spaceId   String
+  space     Space    @relation(fields: [spaceId], references: [id])
+  createdAt DateTime @default(now())
+}
+
 enum Role {
   Admin
   User
