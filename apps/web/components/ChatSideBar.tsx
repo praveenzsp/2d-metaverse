@@ -97,15 +97,19 @@ const ChatSideBar: React.FC<ChatSideBarProps> = ({ isOpen, onClose, messages, on
                                         className={`flex items-center gap-2 mb-1 ${message.isCurrentUser ? 'flex-row-reverse' : 'flex-row'}`}
                                     >
                                         <span className="text-xs text-gray-400">{message.userName}</span>
-                                        <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
                                     </div>
 
                                     <div
-                                        className={`px-3 py-2 rounded-lg ${
+                                        className={`px-3 pt-2 pb-1 rounded-lg ${
                                             message.isCurrentUser ? 'bg-blue-600 text-white' : 'bg-gray-800 text-white'
                                         }`}
                                     >
-                                        <p className="text-sm break-words">{message.message}</p>
+                                        <p className="text-md break-words">{message.message}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-[0.5rem] text-gray-400">
+                                            {formatTime(message.timestamp)}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -152,7 +156,7 @@ const ChatSideBar: React.FC<ChatSideBarProps> = ({ isOpen, onClose, messages, on
                                     document.addEventListener('keydown', preventPhaserKeys, true);
                                     document.addEventListener('keypress', preventPhaserKeys, true);
                                     document.addEventListener('keyup', preventPhaserKeys, true);
-                                    
+
                                     // Store the listener for cleanup
                                     (textareaRef.current as any)._phaserKeyListener = preventPhaserKeys;
                                 }}

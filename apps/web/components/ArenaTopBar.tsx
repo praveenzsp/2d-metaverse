@@ -6,9 +6,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 interface ArenaTopBarProps {
     spaceName: string;
+    isMeetingViewEnabled: boolean;
+    setIsMeetingViewEnabled: (isMeetingViewEnabled: boolean) => void;
 }
 
-export default function ArenaTopBar({ spaceName }: ArenaTopBarProps) {
+export default function ArenaTopBar({ spaceName, isMeetingViewEnabled, setIsMeetingViewEnabled }: ArenaTopBarProps) {
     return (
         <div className="w-screen min-h-10 bg-gray-900">
             <div className="flex flex-row justify-between items-center px-4">
@@ -35,12 +37,14 @@ export default function ArenaTopBar({ spaceName }: ArenaTopBarProps) {
                 <div className="flex items-center">
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={() => {}} className="hover:bg-accent">
+                            <Button variant="ghost" size="icon" onClick={() => {
+                                setIsMeetingViewEnabled(!isMeetingViewEnabled);
+                            }} className="hover:bg-accent">
                                 <LayoutGrid className="h-4 w-4" />
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                            <p>Meeting View</p>
+                            <p>{isMeetingViewEnabled ? 'Map View' : 'Meeting View'}</p>
                         </TooltipContent>
                     </Tooltip>
                 </div>

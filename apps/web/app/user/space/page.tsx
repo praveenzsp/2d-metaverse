@@ -34,15 +34,43 @@ export default function SpacePage() {
     const [spaceMessages, setSpaceMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isMeetingViewEnabled, setIsMeetingViewEnabled] = useState(false);
 
-    const arenaRef = useRef<{ 
-        handleDeleteSelected?: () => void; 
+    const arenaRef = useRef<{
+        handleDeleteSelected?: () => void;
         cleanup?: () => Promise<void>;
         sendChatMessage?: (message: string) => void;
         requestChatMessages?: () => void;
         disableKeyboardInput?: () => void;
         enableKeyboardInput?: () => void;
     }>(null);
+
+    // Disable browser back navigation
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            e.preventDefault();
+            return 'Are you sure you want to leave? You will be disconnected from the space.';
+        };
+
+        const handlePopState = (e: PopStateEvent) => {
+            e.preventDefault();
+            // Push the current state back to prevent navigation
+            window.history.pushState(null, '', window.location.href);
+        };
+
+        // Add event listeners
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener('popstate', handlePopState);
+        
+        // Push current state to history
+        window.history.pushState(null, '', window.location.href);
+
+        // Cleanup function
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            window.removeEventListener('popstate', handlePopState);
+        };
+    }, []);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -65,17 +93,27 @@ export default function SpacePage() {
                 setUserAvatarUrl(userResponse.data.avatarUrl);
                 setSpaceName(spaceResponse.data.name);
                 setSpaceParticipants(participantsResponse.data.users);
-                
+
                 // Convert chat messages to the expected format
-                const chatMessages: ChatMessage[] = chatResponse.data.messages.map((message: { id: string; userId: string; username: string; avatarUrl?: string; message: string; timestamp: string; spaceId: string }) => ({
-                    id: message.id,
-                    userId: message.userId,
-                    userName: message.username,
-                    userAvatar: message.avatarUrl,
-                    message: message.message,
-                    timestamp: new Date(message.timestamp),
-                    isCurrentUser: message.userId === userResponse.data.userId,
-                }));
+                const chatMessages: ChatMessage[] = chatResponse.data.messages.map(
+                    (message: {
+                        id: string;
+                        userId: string;
+                        username: string;
+                        avatarUrl?: string;
+                        message: string;
+                        timestamp: string;
+                        spaceId: string;
+                    }) => ({
+                        id: message.id,
+                        userId: message.userId,
+                        userName: message.username,
+                        userAvatar: message.avatarUrl,
+                        message: message.message,
+                        timestamp: new Date(message.timestamp),
+                        isCurrentUser: message.userId === userResponse.data.userId,
+                    }),
+                );
                 setSpaceMessages(chatMessages);
             } catch (err) {
                 console.error('Failed to fetch data:', err);
@@ -157,10 +195,10 @@ export default function SpacePage() {
         if (participantsSideBarOpen) {
             setParticipantsSideBarOpen(false);
         }
-        
+
         const newChatSideBarOpen = !chatSideBarOpen;
         setChatSideBarOpen(newChatSideBarOpen);
-        
+
         // Disable/enable keyboard input based on chat sidebar state
         if (newChatSideBarOpen) {
             arenaRef.current?.disableKeyboardInput?.();
@@ -172,7 +210,7 @@ export default function SpacePage() {
     const handleSendMessage = (message: string) => {
         if (arenaRef.current?.sendChatMessage) {
             arenaRef.current.sendChatMessage(message);
-            
+
             // Add the message to local state immediately for the current user
             const newMessage: ChatMessage = {
                 id: `temp-${Date.now()}`, // Temporary ID until server responds
@@ -183,11 +221,19 @@ export default function SpacePage() {
                 timestamp: new Date(),
                 isCurrentUser: true,
             };
-            setSpaceMessages(prev => [...prev, newMessage]);
+            setSpaceMessages((prev) => [...prev, newMessage]);
         }
     };
 
-    const handleChatMessage = (message: { id: string; userId: string; username: string; avatarUrl?: string; message: string; timestamp: string | Date; spaceId: string }) => {
+    const handleChatMessage = (message: {
+        id: string;
+        userId: string;
+        username: string;
+        avatarUrl?: string;
+        message: string;
+        timestamp: string | Date;
+        spaceId: string;
+    }) => {
         const chatMessage: ChatMessage = {
             id: message.id,
             userId: message.userId,
@@ -197,13 +243,13 @@ export default function SpacePage() {
             timestamp: new Date(message.timestamp),
             isCurrentUser: message.userId === userId,
         };
-        
-        setSpaceMessages(prev => {
+
+        setSpaceMessages((prev) => {
             // If this is a message from the current user, replace the temporary message
             if (message.userId === userId) {
                 // Remove any temporary messages with the same content and add the real one
-                const filteredMessages = prev.filter(msg => 
-                    !(msg.id.startsWith('temp-') && msg.message === message.message)
+                const filteredMessages = prev.filter(
+                    (msg) => !(msg.id.startsWith('temp-') && msg.message === message.message),
                 );
                 return [...filteredMessages, chatMessage];
             } else {
@@ -213,8 +259,18 @@ export default function SpacePage() {
         });
     };
 
-    const handleChatMessages = (messages: { id: string; userId: string; username: string; avatarUrl?: string; message: string; timestamp: string | Date; spaceId: string }[]) => {
-        const chatMessages: ChatMessage[] = messages.map(message => ({
+    const handleChatMessages = (
+        messages: {
+            id: string;
+            userId: string;
+            username: string;
+            avatarUrl?: string;
+            message: string;
+            timestamp: string | Date;
+            spaceId: string;
+        }[],
+    ) => {
+        const chatMessages: ChatMessage[] = messages.map((message) => ({
             id: message.id,
             userId: message.userId,
             userName: message.username,
@@ -231,17 +287,23 @@ export default function SpacePage() {
             className="h-screen w-screen relative flex flex-col gap-1
         "
         >
-            <ArenaTopBar spaceName={spaceName} />
+            <ArenaTopBar
+                spaceName={spaceName}
+                isMeetingViewEnabled={isMeetingViewEnabled}
+                setIsMeetingViewEnabled={setIsMeetingViewEnabled}
+            />
 
             <div className="w-full h-full overflow-hidden">
                 <div className="absolute flex flex-row items-center justify-center  gap-2 left-1/2 transform -translate-x-1/2 p-2"></div>
-                <UserSpaceArena 
-                    ref={arenaRef} 
-                    spaceId={spaceId} 
-                    userId={userId} 
+                <UserSpaceArena
+                    ref={arenaRef}
+                    spaceId={spaceId}
+                    userId={userId}
                     onCallStatusChange={setCallStatus}
                     onChatMessage={handleChatMessage}
                     onChatMessages={handleChatMessages}
+                    isMeetingViewEnabled={isMeetingViewEnabled}
+                    setIsMeetingViewEnabled={setIsMeetingViewEnabled}
                 />
                 {/* Participants Sidebar */}
                 <ParticipantsSideBar

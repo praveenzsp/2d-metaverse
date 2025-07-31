@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState, useCallback } from 'react';
 import Phaser from 'phaser';
@@ -6,6 +7,7 @@ import { isAxiosError } from 'axios';
 import { useWebRTC, ProximityUser } from '@/hooks/useWebRTC';
 import VideoBox from './VideoBox';
 import { CallControls } from './CallControls';
+import { motion } from 'motion/react';
 
 // WebSocket message types
 interface WebSocketMessage {
@@ -155,9 +157,7 @@ class MainScene extends Phaser.Scene {
     private usernamesData: { id: string; username: string }[] = [];
     private playerId: string | null = null;
 
-
     private player!: Phaser.GameObjects.Sprite;
-
 
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
 
@@ -193,7 +193,6 @@ class MainScene extends Phaser.Scene {
 
     // Load all game assets (images, sprites, etc.)
     preload() {
-
         this.load.image('gridTile', '/tile1.png');
         this.load.spritesheet('dude', '/dude.png', {
             frameWidth: 32,
@@ -475,7 +474,7 @@ class MainScene extends Phaser.Scene {
 
         // Create main player username with a temporary value
         this.createMainPlayerUsername('Loading...');
-        
+
         // Try to get the actual username immediately if available
         const actualUsername = this.getUsernameForPlayer(userId);
         if (actualUsername !== 'player') {
@@ -532,13 +531,13 @@ class MainScene extends Phaser.Scene {
 
         // Get username from the React component's avatars data
         const username = this.getUsernameForPlayer(id);
-        
+
         const text = this.add.text(
             x * this.CELL_SIZE + this.CELL_SIZE / 2,
             y * this.CELL_SIZE + this.CELL_SIZE / 4, // Position above the player (reduced gap)
             username,
             {
-                fontSize: '12px',
+                fontSize: '10px',
                 color: 'white',
                 stroke: 'gray',
                 strokeThickness: 2,
@@ -549,12 +548,12 @@ class MainScene extends Phaser.Scene {
                     left: 8,
                     right: 8,
                 },
-            }
+            },
         );
-        
+
         text.setOrigin(0.5, 1); // Center horizontally, align to bottom
         text.setDepth(4); // Above everything else
-        
+
         this.playerUsernames.set(id, text);
     }
 
@@ -566,10 +565,10 @@ class MainScene extends Phaser.Scene {
     // Method to set usernames from React component
     setUsernames(usernames: { id: string; username: string }[]) {
         this.usernamesData = usernames;
-        
+
         // Update existing username texts
         this.playerUsernames.forEach((text, playerId) => {
-            const usernameData = this.usernamesData.find(u => u.id === playerId);
+            const usernameData = this.usernamesData.find((u) => u.id === playerId);
             if (usernameData) {
                 text.setText(usernameData.username);
             }
@@ -577,7 +576,7 @@ class MainScene extends Phaser.Scene {
 
         // Update main player username if it exists
         if (this.mainPlayerUsername && this.playerId) {
-            const mainPlayerUsernameData = this.usernamesData.find(u => u.id === this.playerId);
+            const mainPlayerUsernameData = this.usernamesData.find((u) => u.id === this.playerId);
             if (mainPlayerUsernameData) {
                 this.mainPlayerUsername.setText(mainPlayerUsernameData.username);
             } else {
@@ -585,8 +584,6 @@ class MainScene extends Phaser.Scene {
             }
         }
     }
-
-
 
     // Method to create username for the main player
     createMainPlayerUsername(username: string) {
@@ -597,7 +594,7 @@ class MainScene extends Phaser.Scene {
             this.player.y - 10, // Reduced gap to match remote players
             username,
             {
-                fontSize: '12px',
+                fontSize: '10px',
                 color: 'white',
                 stroke: 'gray',
                 strokeThickness: 2,
@@ -608,14 +605,14 @@ class MainScene extends Phaser.Scene {
                     left: 8,
                     right: 8,
                 },
-            }
+            },
         );
-        
+
         text.setOrigin(0.5, 1); // Center horizontally, align to bottom
         text.setDepth(4); // Above everything else
-        
+
         this.mainPlayerUsername = text;
-        
+
         // If we have a player ID, try to get the actual username immediately
         if (this.playerId) {
             const actualUsername = this.getUsernameForPlayer(this.playerId);
@@ -638,12 +635,12 @@ class MainScene extends Phaser.Scene {
         const baseFontSize = 12;
         const zoomFactor = this.cameras.main.zoom;
         const adjustedFontSize = Math.max(baseFontSize / zoomFactor, 8); // Minimum 8px
-        
+
         // Update main player username font size
         if (this.mainPlayerUsername) {
             this.mainPlayerUsername.setFontSize(adjustedFontSize);
         }
-        
+
         // Update other players' username font sizes
         this.playerUsernames.forEach((text) => {
             text.setFontSize(adjustedFontSize);
@@ -1093,6 +1090,7 @@ class MainScene extends Phaser.Scene {
     }
 
     // Send chat message to server
+    // we created this method here, but we're calling it in page.tsx
     sendChatMessage(message: string) {
         if (this.ws?.readyState === WebSocket.OPEN && this.spaceId) {
             this.ws.send(
@@ -1107,6 +1105,7 @@ class MainScene extends Phaser.Scene {
     }
 
     // Request chat messages from server
+    // we created this method here, but we're calling it in page.tsx
     requestChatMessages() {
         if (this.ws?.readyState === WebSocket.OPEN && this.spaceId) {
             this.ws.send(
@@ -1242,8 +1241,8 @@ class MainScene extends Phaser.Scene {
 
 // React component that wraps the Phaser game
 const UserSpaceArena = forwardRef<
-    { 
-        handleDeleteSelected?: () => void; 
+    {
+        handleDeleteSelected?: () => void;
         cleanup?: () => Promise<void>;
         sendChatMessage?: (message: string) => void;
         requestChatMessages?: () => void;
@@ -1260,6 +1259,8 @@ const UserSpaceArena = forwardRef<
         }) => void;
         onChatMessage?: (message: ChatMessagePayload) => void;
         onChatMessages?: (messages: ChatMessagePayload[]) => void;
+        isMeetingViewEnabled: boolean;
+        setIsMeetingViewEnabled: (isMeetingViewEnabled: boolean) => void;
     }
 >((props, ref) => {
     const {
@@ -1284,7 +1285,6 @@ const UserSpaceArena = forwardRef<
     }, [callParticipants]);
 
     const [isGameReady, setIsGameReady] = useState(false);
-
 
     // Monitor participants and ensure video refs are set up
     useEffect(() => {
@@ -1365,8 +1365,7 @@ const UserSpaceArena = forwardRef<
                 const videoElement = videoRefs.current[participant.id]?.current;
                 if (videoElement && participant.stream) {
                     videoElement.srcObject = participant.stream;
-                }
-                else{
+                } else {
                     console.warn(`No video element for participant: ${participant.id}`);
                 }
             });
@@ -1390,7 +1389,7 @@ const UserSpaceArena = forwardRef<
             }
         });
     }, [callParticipants]);
-    
+
     const gameRef = useRef<Phaser.Game | null>(null);
 
     const sceneRef = useRef<MainScene | null>(null);
@@ -1414,7 +1413,6 @@ const UserSpaceArena = forwardRef<
             }
         });
     }, [callParticipants, getUniqueParticipants]);
-
 
     // Callback to receive proximity data from the game scene
     const handleProximityUpdateFromScene = useCallback(
@@ -1516,12 +1514,12 @@ const UserSpaceArena = forwardRef<
                 sceneRef.current = scene;
                 scene.events.on('proximity-users', handleProximityUpdateFromScene); // Listen for proximity updates from the scene
                 setIsGameReady(true); // Mark game as ready
-                
+
                 // Pass usernames to the scene if available
                 if (avatarsUrlsRef.current.length > 0) {
                     const usernames = avatarsUrlsRef.current.map((user) => ({
                         id: user.id,
-                        username: user.username
+                        username: user.username,
                     }));
                     scene.setUsernames(usernames);
                 }
@@ -1538,7 +1536,6 @@ const UserSpaceArena = forwardRef<
                 gameRef.current = null;
                 sceneRef.current = null;
             }
-
         };
     }, [props.spaceId]);
 
@@ -1549,25 +1546,27 @@ const UserSpaceArena = forwardRef<
         }
     }, [props.spaceId]);
 
-    const avatarsUrlsRef = useRef<{id: string, username: string, avatarUrl: string | null}[]>([])
-    
-    useEffect(()=>{
-        const fetchAllUsersAvatars = async()=>{
-            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/get-all-users-avatars`)
-            const data = await response.json()
-            avatarsUrlsRef.current = data.avatarsUrls
-            
+    const avatarsUrlsRef = useRef<{ id: string; username: string; avatarUrl: string | null }[]>([]);
+
+    useEffect(() => {
+        const fetchAllUsersAvatars = async () => {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/get-all-users-avatars`);
+            const data = await response.json();
+            avatarsUrlsRef.current = data.avatarsUrls;
+
             // Pass usernames to the game scene if it's ready
             if (sceneRef.current) {
-                const usernames = data.avatarsUrls.map((user: { id: string; username: string; avatarUrl: string | null }) => ({
-                    id: user.id,
-                    username: user.username
-                }));
+                const usernames = data.avatarsUrls.map(
+                    (user: { id: string; username: string; avatarUrl: string | null }) => ({
+                        id: user.id,
+                        username: user.username,
+                    }),
+                );
                 sceneRef.current.setUsernames(usernames);
             }
-        }
-        fetchAllUsersAvatars()
-    },[isGameReady]) // Re-run when game becomes ready
+        };
+        fetchAllUsersAvatars();
+    }, [isGameReady]); // Re-run when game becomes ready
 
     // Get unique participants to avoid duplicate keys
     const uniqueParticipants = getUniqueParticipants();
@@ -1576,20 +1575,30 @@ const UserSpaceArena = forwardRef<
         <div className="relative w-full h-full">
             {/* Video Boxes for Call Participants */}
             {uniqueParticipants.length > 0 && (
-                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 right-auto z-30 bg-amber-300">
-                    <div className="flex flex-row gap-3 flex-wrap justify-start max-w-full">
+                <motion.div
+                    className={`absolute left-1/2 transform -translate-x-1/2 right-auto z-30 flex flex-row justify-center items-center ${props.isMeetingViewEnabled ? 'w-full h-full top-0 bg-black' : 'top-4'}`}
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.5, ease: 'easeOut', type: 'spring', bounce: 0.3, delay: 0.2 }}
+                >
+                    <div className={`flex flex-row gap-2 justify-center items-center w-full h-auto`}>
                         {/* render video box for current user */}
                         <VideoBox
                             username="You"
                             videoRef={videoRefs.current[props.userId]}
                             variant="large"
-                            avatarUrl={avatarsUrlsRef.current.find((avatar) => avatar.id === props.userId)?.avatarUrl || null}
+                            avatarUrl={
+                                avatarsUrlsRef.current.find((avatar) => avatar.id === props.userId)?.avatarUrl || null
+                            }
                             videoEnabled={videoEnabled}
                             audioEnabled={audioEnabled}
                             showExpandButton={true}
                             toggleVideo={toggleVideo}
                             toggleAudio={toggleAudio}
                             isLocalUser={true}
+                            isMeetingViewEnabled={props.isMeetingViewEnabled}
+                            setIsMeetingViewEnabled={props.setIsMeetingViewEnabled}
                         />
                         {uniqueParticipants.map((participant, index) => {
                             if (participant.id === props.userId) return null;
@@ -1608,17 +1617,22 @@ const UserSpaceArena = forwardRef<
                                     key={uniqueKey}
                                     videoRef={videoRefs.current[participant.id]}
                                     variant={variant}
-                                    avatarUrl={avatarsUrlsRef.current.find((avatar) => avatar.id === participant.id)?.avatarUrl || null}
+                                    avatarUrl={
+                                        avatarsUrlsRef.current.find((avatar) => avatar.id === participant.id)
+                                            ?.avatarUrl || null
+                                    }
                                     videoEnabled={participant.isVideoEnabled}
                                     audioEnabled={participant.isAudioEnabled}
                                     showExpandButton={true}
                                     username={participant.username}
                                     isLocalUser={participant.id === props.userId}
+                                    isMeetingViewEnabled={props.isMeetingViewEnabled}
+                                    setIsMeetingViewEnabled={props.setIsMeetingViewEnabled}
                                 />
                             );
                         })}
                     </div>
-                </div>
+                </motion.div>
             )}
             {/* Call Controls */}
             <CallControls
