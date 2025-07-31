@@ -1,7 +1,7 @@
 // These are imports - they let us use code from other files
 import { WebSocket } from 'ws';
 import { RoomManager } from './RoomManager';
-import { OutgoingMessage, ProximityUser } from './types';
+import { OutgoingMessage, ProximityUser, ChatMessage } from './types';
 import prisma from '@repo/db/client';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { JWT_SECRET } from './config';
@@ -234,6 +234,14 @@ export class User {
                 case 'leave-proximity-call':
                     this.leaveCurrentCall();
                     break;
+
+                case 'send-chat-message':
+                    await this.handleChatMessage(parsedData.payload);
+                    break;
+
+                case 'get-chat-messages':
+                    await this.sendChatMessages();
+                    break;
             }
         });
     }
@@ -293,6 +301,113 @@ export class User {
         const userCallState = RoomManager.getInstance().getUserCallState(this.userId);
         if (userCallState?.callId) {
             RoomManager.getInstance().leaveCall(this.userId, userCallState.callId);
+        }
+    }
+
+    /**
+     * Handle incoming chat messages
+     */
+    private async handleChatMessage(payload: { message: string }) {
+        if (!this.spaceId || !payload.message?.trim()) {
+            return;
+        }
+
+        try {
+            // Save message to database
+            const savedMessage = await prisma.chatMessage.create({
+                data: {
+                    message: payload.message.trim(),
+                    userId: this.userId,
+                    spaceId: this.spaceId,
+                },
+                include: {
+                    user: {
+                        select: {
+                            username: true,
+                            avatar: {
+                                select: {
+                                    imageUrl: true,
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Create chat message object
+            const chatMessage: ChatMessage = {
+                id: savedMessage.id,
+                userId: savedMessage.userId,
+                username: savedMessage.user.username,
+                avatarUrl: savedMessage.user.avatar?.imageUrl || undefined,
+                message: savedMessage.message,
+                timestamp: savedMessage.createdAt,
+                spaceId: savedMessage.spaceId,
+            };
+
+            // Broadcast to all users in the space
+            RoomManager.getInstance().broadcast(
+                {
+                    type: 'chat-message',
+                    payload: chatMessage,
+                },
+                this,
+                this.spaceId!,
+            );
+        } catch (error) {
+            console.error('Error saving chat message:', error);
+        }
+    }
+
+    /**
+     * Send chat messages to the user
+     */
+    private async sendChatMessages() {
+        if (!this.spaceId) {
+            return;
+        }
+
+        try {
+            const messages = await prisma.chatMessage.findMany({
+                where: {
+                    spaceId: this.spaceId,
+                },
+                include: {
+                    user: {
+                        select: {
+                            username: true,
+                            avatar: {
+                                select: {
+                                    imageUrl: true,
+                                }
+                            }
+                        }
+                    }
+                },
+                orderBy: {
+                    createdAt: 'asc',
+                },
+                take: 50, // Limit to last 50 messages
+            });
+
+            const chatMessages: ChatMessage[] = messages.map((msg) => ({
+                id: msg.id,
+                userId: msg.userId,
+                username: msg.user.username,
+                avatarUrl: msg.user.avatar?.imageUrl || undefined,
+                message: msg.message,
+                timestamp: msg.createdAt,
+                spaceId: msg.spaceId,
+            }));
+
+            this.send({
+                type: 'chat-messages',
+                payload: {
+                    messages: chatMessages,
+                },
+            });
+        } catch (error) {
+            console.error('Error fetching chat messages:', error);
         }
     }
 

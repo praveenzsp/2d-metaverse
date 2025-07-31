@@ -400,6 +400,100 @@ spaceRouter.get("/users/:spaceId", userAuthMiddleware, async (req:Request, res:R
 	}
 })
 
+// Get chat messages for a space
+spaceRouter.get("/chat/:spaceId", userAuthMiddleware, async (req:Request, res:Response)=>{
+	const {spaceId} = req.params;
 
+	try{
+		const messages = await prisma.chatMessage.findMany({
+			where: {
+				spaceId: spaceId,
+			},
+			include: {
+				user: {
+					select: {
+						username: true,
+						avatar: {
+							select: {
+								imageUrl: true,
+							}
+						}
+					}
+				}
+			},
+			orderBy: {
+				createdAt: 'asc',
+			},
+			take: 50, // Limit to last 50 messages
+		});
+
+		const chatMessages = messages.map((msg:any) => ({
+			id: msg.id,
+			userId: msg.userId,
+			username: msg.user.username,
+			avatarUrl: msg.user.avatar?.imageUrl,
+			message: msg.message,
+			timestamp: msg.createdAt,
+			spaceId: msg.spaceId,
+		}));
+
+		res.status(200).json({messages: chatMessages});
+		return;
+	}
+	catch(error){
+		res.status(400).json({message: "Internal server error"});
+		return;
+	}
+})
+
+// Send a chat message to a space
+spaceRouter.post("/chat/:spaceId", userAuthMiddleware, async (req:Request, res:Response)=>{
+	const {spaceId} = req.params;
+	const {message} = req.body;
+
+	if (!message || typeof message !== 'string' || !message.trim()) {
+		res.status(400).json({message: "Message is required and must be a non-empty string"});
+		return;
+	}
+
+	try{
+		const savedMessage = await prisma.chatMessage.create({
+			data: {
+				message: message.trim(),
+				userId: req.userId,
+				spaceId: spaceId,
+			},
+			include: {
+				user: {
+					select: {
+						username: true,
+						avatar: {
+							select: {
+								imageUrl: true,
+							}
+						}
+					}
+				}
+			}
+		});
+
+		const chatMessage = {
+			id: savedMessage.id,
+			userId: savedMessage.userId,
+			username: savedMessage.user.username,
+			avatarUrl: savedMessage.user.avatar?.imageUrl,
+			message: savedMessage.message,
+			timestamp: savedMessage.createdAt,
+			spaceId: savedMessage.spaceId,
+		};
+
+		res.status(200).json({message: chatMessage});
+		return;
+	}
+	catch(error){
+		res.status(400).json({message: "Internal server error"});
+		return;
+	}
+})
 
 export default spaceRouter;

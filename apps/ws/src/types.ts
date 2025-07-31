@@ -32,6 +32,17 @@ export interface ProximityUser {
 	y: number;
 }
 
+// Chat message types
+export interface ChatMessage {
+	id: string;
+	userId: string;
+	username: string;
+	avatarUrl?: string;
+	message: string;
+	timestamp: Date;
+	spaceId: string;
+}
+
 // WebSocket message types for call management
 export interface CallManagementMessage {
 	type: 'create-proximity-call' | 'join-proximity-call' | 'leave-proximity-call' | 'merge-calls' | 'split-calls';

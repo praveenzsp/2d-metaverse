@@ -22,7 +22,9 @@ interface WebSocketMessage {
         | 'proximity-call-created'
         | 'proximity-call-updated'
         | 'proximity-calls-merged'
-        | 'user-left-proximity-call';
+        | 'user-left-proximity-call'
+        | 'chat-message'
+        | 'chat-messages';
     payload:
         | JoinPayload
         | MovePayload
@@ -35,7 +37,9 @@ interface WebSocketMessage {
         | ProximityCallCreatedPayload
         | ProximityCallUpdatedPayload
         | ProximityCallsMergedPayload
-        | UserLeftProximityCallPayload;
+        | UserLeftProximityCallPayload
+        | ChatMessagePayload
+        | ChatMessagesPayload;
 }
 
 interface JoinPayload {
@@ -126,6 +130,20 @@ interface UserLeftProximityCallPayload {
     callId: string;
     leftUserId: string;
     remainingParticipants: Array<{ userId: string; username: string }>;
+}
+
+interface ChatMessagePayload {
+    id: string;
+    userId: string;
+    username: string;
+    avatarUrl?: string;
+    message: string;
+    timestamp: Date;
+    spaceId: string;
+}
+
+interface ChatMessagesPayload {
+    messages: ChatMessagePayload[];
 }
 
 // Main game scene class that handles all game logic and rendering
@@ -399,6 +417,14 @@ class MainScene extends Phaser.Scene {
                     case 'user-left-proximity-call':
                         // Forward to React component
                         this.events.emit('user-left-proximity-call', data.payload);
+                        break;
+                    case 'chat-message':
+                        // Forward to React component
+                        this.events.emit('chat-message', data.payload);
+                        break;
+                    case 'chat-messages':
+                        // Forward to React component
+                        this.events.emit('chat-messages', data.payload);
                         break;
                 }
             };
@@ -1066,6 +1092,46 @@ class MainScene extends Phaser.Scene {
         }
     }
 
+    // Send chat message to server
+    sendChatMessage(message: string) {
+        if (this.ws?.readyState === WebSocket.OPEN && this.spaceId) {
+            this.ws.send(
+                JSON.stringify({
+                    type: 'send-chat-message',
+                    payload: {
+                        message: message,
+                    },
+                }),
+            );
+        }
+    }
+
+    // Request chat messages from server
+    requestChatMessages() {
+        if (this.ws?.readyState === WebSocket.OPEN && this.spaceId) {
+            this.ws.send(
+                JSON.stringify({
+                    type: 'get-chat-messages',
+                    payload: {},
+                }),
+            );
+        }
+    }
+
+    // Disable keyboard input (for chat)
+    disableKeyboardInput() {
+        if (this.input.keyboard) {
+            this.input.keyboard.enabled = false;
+        }
+    }
+
+    // Enable keyboard input (for game)
+    enableKeyboardInput() {
+        if (this.input.keyboard) {
+            this.input.keyboard.enabled = true;
+        }
+    }
+
     // Clean up WebSocket connection when scene is destroyed
     shutdown() {
         // Send leave message to server before closing connection
@@ -1176,7 +1242,14 @@ class MainScene extends Phaser.Scene {
 
 // React component that wraps the Phaser game
 const UserSpaceArena = forwardRef<
-    { handleDeleteSelected?: () => void; cleanup?: () => Promise<void> },
+    { 
+        handleDeleteSelected?: () => void; 
+        cleanup?: () => Promise<void>;
+        sendChatMessage?: (message: string) => void;
+        requestChatMessages?: () => void;
+        disableKeyboardInput?: () => void;
+        enableKeyboardInput?: () => void;
+    },
     {
         spaceId: string;
         userId: string;
@@ -1185,6 +1258,8 @@ const UserSpaceArena = forwardRef<
             callParticipantsCount: number;
             proximityUsersCount: number;
         }) => void;
+        onChatMessage?: (message: ChatMessagePayload) => void;
+        onChatMessages?: (messages: ChatMessagePayload[]) => void;
     }
 >((props, ref) => {
     const {
@@ -1254,11 +1329,29 @@ const UserSpaceArena = forwardRef<
         scene.events.on('proximity-call-created', handleProximityCallCreated);
         scene.events.on('proximity-call-updated', handleProximityCallUpdated);
 
+        // Chat event handlers
+        const handleChatMessage = (payload: ChatMessagePayload) => {
+            if (props.onChatMessage) {
+                props.onChatMessage(payload);
+            }
+        };
+
+        const handleChatMessages = (payload: ChatMessagesPayload) => {
+            if (props.onChatMessages) {
+                props.onChatMessages(payload.messages);
+            }
+        };
+
+        scene.events.on('chat-message', handleChatMessage);
+        scene.events.on('chat-messages', handleChatMessages);
+
         return () => {
             scene.events.off('proximity-call-created', handleProximityCallCreated);
             scene.events.off('proximity-call-updated', handleProximityCallUpdated);
+            scene.events.off('chat-message', handleChatMessage);
+            scene.events.off('chat-messages', handleChatMessages);
         };
-    }, [isGameReady, props.userId, joinProximityCall]);
+    }, [isGameReady, props.userId, joinProximityCall, props.onChatMessage, props.onChatMessages]);
 
     // Connect video streams to video elements
     useEffect(() => {
@@ -1353,6 +1446,26 @@ const UserSpaceArena = forwardRef<
                     gameRef.current.destroy(true);
                     gameRef.current = null;
                     sceneRef.current = null;
+                }
+            },
+            sendChatMessage: (message: string) => {
+                if (sceneRef.current) {
+                    sceneRef.current.sendChatMessage(message);
+                }
+            },
+            requestChatMessages: () => {
+                if (sceneRef.current) {
+                    sceneRef.current.requestChatMessages();
+                }
+            },
+            disableKeyboardInput: () => {
+                if (sceneRef.current) {
+                    sceneRef.current.disableKeyboardInput();
+                }
+            },
+            enableKeyboardInput: () => {
+                if (sceneRef.current) {
+                    sceneRef.current.enableKeyboardInput();
                 }
             },
         }),
