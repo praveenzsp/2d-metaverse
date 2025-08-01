@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Link, LayoutGrid } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { toast } from 'sonner';
 
 interface ArenaTopBarProps {
     spaceName: string;
@@ -11,6 +12,15 @@ interface ArenaTopBarProps {
 }
 
 export default function ArenaTopBar({ spaceName, isMeetingViewEnabled, setIsMeetingViewEnabled }: ArenaTopBarProps) {
+
+    const handleCopyLink = () => {
+        navigator.clipboard.writeText(window.location.href);
+        toast.success('Link copied to clipboard', {
+            description: 'You can now share this link with others',
+            duration: 2000,
+        });
+    };
+
     return (
         <div className="w-screen min-h-10 bg-gray-900">
             <div className="flex flex-row justify-between items-center px-4">
@@ -18,7 +28,7 @@ export default function ArenaTopBar({ spaceName, isMeetingViewEnabled, setIsMeet
                 <div className="flex items-center">
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={() => {}} className="hover:bg-accent">
+                            <Button variant="ghost" size="icon" onClick={handleCopyLink} className="hover:bg-accent">
                                 <Link className="h-4 w-4" />
                             </Button>
                         </TooltipTrigger>
