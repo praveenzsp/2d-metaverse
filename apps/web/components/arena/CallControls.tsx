@@ -1,6 +1,6 @@
 import React from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Settings } from 'lucide-react';
-import { Button } from './ui/button';
+import { PhoneOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface CallControlsProps {
     isInCall: boolean;
@@ -14,10 +14,10 @@ interface CallControlsProps {
 
 export const CallControls: React.FC<CallControlsProps> = ({
     isInCall,
-    audioEnabled,
-    videoEnabled,
-    onToggleAudio,
-    onToggleVideo,
+    // audioEnabled,
+    // videoEnabled,
+    // onToggleAudio,
+    // onToggleVideo,
     onLeaveCall,
     participantCount,
 }) => {

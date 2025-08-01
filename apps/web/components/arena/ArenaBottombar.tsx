@@ -6,7 +6,7 @@ import {
     VideoOff,
     MessageCircle,
     Users,
-    Monitor,
+    // Monitor,
     LogOut,
     Edit,
     ChevronDown,
@@ -38,7 +38,7 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
     onChat,
     onLeave,
     onParticipants,
-    onShareScreen,
+    // onShareScreen,
     onEditMap,
     isAdmin = false,
     isInCall = false,
@@ -235,7 +235,7 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
                             )}
                         </div>
 
-                        <Tooltip>
+                        {/* <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
                                     onClick={onShareScreen}
@@ -250,7 +250,7 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
                             <TooltipContent>
                                 <p>Share Screen</p>
                             </TooltipContent>
-                        </Tooltip>
+                        </Tooltip> */}
                     </>
                 )}
             </div>

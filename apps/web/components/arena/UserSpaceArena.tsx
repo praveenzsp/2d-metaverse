@@ -5,7 +5,7 @@ import Phaser from 'phaser';
 import axios from '@/lib/axios';
 import { isAxiosError } from 'axios';
 import { useWebRTC, ProximityUser } from '@/hooks/useWebRTC';
-import VideoBox from './VideoBox';
+import VideoBox from '@/components/arena/VideoBox';
 import { CallControls } from './CallControls';
 import { motion } from 'motion/react';
 

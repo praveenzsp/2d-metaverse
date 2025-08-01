@@ -1,5 +1,5 @@
 import React from 'react';
-import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Maximize2, Mic, MicOff, Video, VideoOff, User, Minimize2 } from 'lucide-react';
 
 interface VideoBoxProps {

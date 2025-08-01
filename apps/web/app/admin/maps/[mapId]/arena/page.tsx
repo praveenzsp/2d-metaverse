@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import ArenaBottombar from '@/components/ArenaBottombar';
+import ArenaBottombar from '@/components/arena/ArenaBottombar';
 import MapEditSidebar from '@/components/MapEditSidebar';
 import dynamic from 'next/dynamic';
 

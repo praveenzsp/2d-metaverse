@@ -2,16 +2,16 @@
 
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import ArenaBottombar from '@/components/ArenaBottombar';
-import ArenaTopBar from '@/components/ArenaTopBar';
+import ArenaBottombar from '@/components/arena/ArenaBottombar';
+import ArenaTopBar from '@/components/arena/ArenaTopBar';
 import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import axios from '@/lib/axios';
-import ParticipantsSideBar, { Participant } from '@/components/ParticipantsSideBar';
-import ChatSideBar, { ChatMessage } from '@/components/ChatSideBar';
+import ParticipantsSideBar, { Participant } from '@/components/arena/ParticipantsSideBar';
+import ChatSideBar, { ChatMessage } from '@/components/arena/ChatSideBar';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-const UserSpaceArena = dynamic(() => import('@/components/UserSpaceArena'), { ssr: false });
+const UserSpaceArena = dynamic(() => import('@/components/arena/UserSpaceArena'), { ssr: false });
 
 export default function SpacePage() {
     const searchParams = useSearchParams();
