@@ -1582,7 +1582,7 @@ const UserSpaceArena = forwardRef<
                     exit={{ opacity: 0, scale: 0.5 }}
                     transition={{ duration: 0.5, ease: 'easeOut', type: 'spring', bounce: 0.3, delay: 0.2 }}
                 >
-                    <div className={`flex flex-row gap-2 justify-center items-center w-full h-auto`}>
+                    <div className={`flex flex-row gap-2 justify-center items-center w-full h-auto px-4`}>
                         {/* render video box for current user */}
                         <VideoBox
                             username="You"

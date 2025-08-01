@@ -62,7 +62,7 @@ function VideoBox({
                 ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center space-y-2">
                         <Avatar
-                            className={`${variant === 'small' ? 'w-8 h-8' : variant === 'medium' ? 'w-12 h-12' : 'w-16 h-16'}`}
+                            className={`my-48 ${variant === 'small' ? 'w-8 h-8' : variant === 'medium' ? 'w-12 h-12' : 'w-16 h-16'}`}
                         >
                             <AvatarImage src={avatarUrl || ''} />
                             <AvatarFallback className="bg-gray-600 text-white">
