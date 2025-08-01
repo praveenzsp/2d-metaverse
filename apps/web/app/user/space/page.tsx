@@ -9,6 +9,7 @@ import { useState, useRef, useEffect } from 'react';
 import axios from '@/lib/axios';
 import ParticipantsSideBar, { Participant } from '@/components/ParticipantsSideBar';
 import ChatSideBar, { ChatMessage } from '@/components/ChatSideBar';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 const UserSpaceArena = dynamic(() => import('@/components/UserSpaceArena'), { ssr: false });
 
@@ -283,6 +284,7 @@ export default function SpacePage() {
     };
 
     return (
+        <ProtectedRoute requiredRole="User">
         <div
             className="h-screen w-screen relative flex flex-col gap-1
         "
@@ -338,5 +340,6 @@ export default function SpacePage() {
                 proximityUsersCount={callStatus.proximityUsersCount}
             />
         </div>
+        </ProtectedRoute>
     );
 }

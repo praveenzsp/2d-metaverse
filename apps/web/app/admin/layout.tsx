@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { LayoutDashboard, Users, Map, Box, UserCircle, LogOut, Sun, Moon } from 'lucide-react';
-import axios from '@/lib/axios';
 import { useTheme } from 'next-themes';
 import {
     Dialog,
@@ -16,6 +15,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarItem {
     title: string;
@@ -27,30 +28,15 @@ interface SidebarItem {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
+    const { logout } = useAuth();
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isSignOutDialogOpen, setIsSignOutDialogOpen] = useState(false);
     const isArenaPage = pathname.includes('/arena');
     const { theme, setTheme } = useTheme();
 
-    useEffect(() => {
-        const checkAdminAuth = async () => {
-            try {
-                const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/me`);
-                if (response.data.role !== 'Admin') {
-                    router.push('/dashboard');
-                }
-            } catch (error) {
-                console.error(error);
-                router.push('/signin');
-            }
-        };
-        checkAdminAuth();
-    }, [router]);
-
     const handleSignOut = async () => {
         try {
-            await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/signout`);
-            router.push('/signin');
+            await logout();
         } catch (error) {
             console.error('Error signing out:', error);
         }
@@ -90,7 +76,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     ];
 
     return (
-        <div className="min-h-screen bg-background">
+        <ProtectedRoute requiredRole="Admin">
+            <div className="min-h-screen bg-background">
             {/* Sidebar */}
             {!isArenaPage && (
                 <aside
@@ -183,5 +170,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 )}
             </main>
         </div>
+        </ProtectedRoute>
     );
 }

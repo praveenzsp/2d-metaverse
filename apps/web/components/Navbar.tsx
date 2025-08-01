@@ -1,10 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
-import axios from "@/lib/axios"
 import {
     Dialog,
     DialogContent,
@@ -15,18 +14,18 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { useEffect, useState } from "react"
+import { useAuth } from "@/contexts/AuthContext"
 
 export function Navbar() {
-    const router = useRouter()
     const currentRoute = usePathname()
+    const { logout } = useAuth()
 
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [navLinkText, setNavLinkText] = useState(currentRoute === "/user/profile" ? "Profile" : "Spaces")
 
     const handleSignOut = async () => {
         try {
-            await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/signout`)
-            router.push("/signin")
+            await logout()
         } catch (error) {
             console.error("Error signing out:", error)
         }

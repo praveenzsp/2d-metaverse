@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Mic, MicOff, Video, VideoOff, ArrowLeft, Loader2 } from 'lucide-react';
 import axios from '@/lib/axios';
 import useMediaDevices from '@/hooks/useMediaDevices';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 interface SpaceElement {
     id: string;
@@ -31,7 +32,6 @@ export default function JoinPreviewPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const spaceId = searchParams.get('spaceId');
-
 
     const [joiningSpace, setJoiningSpace] = useState<SpaceData | null>(null);
     const [isJoining, setIsJoining] = useState(false);
@@ -233,128 +233,140 @@ export default function JoinPreviewPage() {
     };
 
     const {
-      isAudioEnabled,
-      isVideoEnabled,
-      videoDevices,
-      audioDevices,
-      selectedVideoDevice,
-      selectedAudioDevice,
-      handleVideoToggle,
-      handleAudioToggle,
-      handleVideoDeviceChange,
-      handleAudioDeviceChange,
+        isAudioEnabled,
+        isVideoEnabled,
+        videoDevices,
+        audioDevices,
+        selectedVideoDevice,
+        selectedAudioDevice,
+        handleVideoToggle,
+        handleAudioToggle,
+        handleVideoDeviceChange,
+        handleAudioDeviceChange,
     } = useMediaDevices(videoRef);
 
     return (
-        <div className="min-h-screen bg-background flex flex-col">
-            {/* Simple Header */}
-            <div className="border-b px-6 py-4">
-                <div className="flex items-center gap-3">
-                    <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8">
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <h1 className="text-lg font-medium">Join Space</h1>
-                </div>
-            </div>
-
-            {/* Main Content */}
-            <div className="flex-1 flex items-center justify-center p-6">
-                <div className="w-full max-w-md space-y-8">
-                    <p className="text-sm text-muted-foreground text-center">
-                        You are trying to join <span className="font-medium">{joiningSpace?.name}</span>
-                    </p>
-                    {/* Video Preview */}
-                    <div className="">
-                        <div className="aspect-video bg-muted rounded-lg flex items-center justify-center border overflow-hidden">
-                            <video
-                                className="w-full h-full object-cover translate scale-x-[-1]"
-                                autoPlay
-                                ref={videoRef}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Simple Controls */}
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex items-center gap-3">
-                                {isAudioEnabled ? (
-                                    <Mic className="h-4 w-4" />
-                                ) : (
-                                    <MicOff className="h-4 w-4 text-muted-foreground" />
-                                )}
-                                <span className="text-sm">Microphone</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {audioDevices.length > 0 && (
-                                    <Select
-                                        value={selectedAudioDevice?.deviceId}
-                                        onValueChange={handleAudioDeviceChange}
-                                    >
-                                        <SelectTrigger className="w-32 h-8 text-xs">
-                                            <SelectValue placeholder="Select mic" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {audioDevices.map((device) => (
-                                                <SelectItem key={device.deviceId} value={device.deviceId}>
-                                                    {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                                <Button variant="outline" size="sm" onClick={handleAudioToggle} className="h-8 px-3">
-                                    {isAudioEnabled ? 'On' : 'Off'}
-                                </Button>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex items-center gap-3">
-                                {isVideoEnabled ? (
-                                    <Video className="h-4 w-4" />
-                                ) : (
-                                    <VideoOff className="h-4 w-4 text-muted-foreground" />
-                                )}
-                                <span className="text-sm">Camera</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {videoDevices.length > 0 && (
-                                    <Select
-                                        value={selectedVideoDevice?.deviceId}
-                                        onValueChange={handleVideoDeviceChange}
-                                    >
-                                        <SelectTrigger className="w-32 h-8 text-xs">
-                                            <SelectValue placeholder="Select camera" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {videoDevices.map((device) => (
-                                                <SelectItem key={device.deviceId} value={device.deviceId}>
-                                                    {device.label || `Camera ${device.deviceId.slice(0, 8)}`}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                                <Button variant="outline" size="sm" onClick={handleVideoToggle} className="h-8 px-3">
-                                    {isVideoEnabled ? 'On' : 'Off'}
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="space-y-3 pt-4">
-                        <Button onClick={handleJoinSpace} className="w-full">
-                            {isJoining ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : ''}
-                            Join Space
+        <ProtectedRoute requiredRole="User">
+            <div className="min-h-screen bg-background flex flex-col">
+                {/* Simple Header */}
+                <div className="border-b px-6 py-4">
+                    <div className="flex items-center gap-3">
+                        <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8">
+                            <ArrowLeft className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" onClick={() => router.back()} className="w-full">
-                            Cancel
-                        </Button>
+                        <h1 className="text-lg font-medium">Join Space</h1>
                     </div>
                 </div>
+
+                {/* Main Content */}
+                <div className="flex-1 flex items-center justify-center p-6">
+                    <div className="w-full max-w-md space-y-8">
+                        <p className="text-sm text-muted-foreground text-center">
+                            You are trying to join <span className="font-medium">{joiningSpace?.name}</span>
+                        </p>
+                        {/* Video Preview */}
+                        <div className="">
+                            <div className="aspect-video bg-muted rounded-lg flex items-center justify-center border overflow-hidden">
+                                <video
+                                    className="w-full h-full object-cover translate scale-x-[-1]"
+                                    autoPlay
+                                    ref={videoRef}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Simple Controls */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between p-3 border rounded-lg">
+                                <div className="flex items-center gap-3">
+                                    {isAudioEnabled ? (
+                                        <Mic className="h-4 w-4" />
+                                    ) : (
+                                        <MicOff className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                    <span className="text-sm">Microphone</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {audioDevices.length > 0 && (
+                                        <Select
+                                            value={selectedAudioDevice?.deviceId}
+                                            onValueChange={handleAudioDeviceChange}
+                                        >
+                                            <SelectTrigger className="w-32 h-8 text-xs">
+                                                <SelectValue placeholder="Select mic" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {audioDevices.map((device) => (
+                                                    <SelectItem key={device.deviceId} value={device.deviceId}>
+                                                        {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleAudioToggle}
+                                        className="h-8 px-3"
+                                    >
+                                        {isAudioEnabled ? 'On' : 'Off'}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 border rounded-lg">
+                                <div className="flex items-center gap-3">
+                                    {isVideoEnabled ? (
+                                        <Video className="h-4 w-4" />
+                                    ) : (
+                                        <VideoOff className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                    <span className="text-sm">Camera</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {videoDevices.length > 0 && (
+                                        <Select
+                                            value={selectedVideoDevice?.deviceId}
+                                            onValueChange={handleVideoDeviceChange}
+                                        >
+                                            <SelectTrigger className="w-32 h-8 text-xs">
+                                                <SelectValue placeholder="Select camera" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {videoDevices.map((device) => (
+                                                    <SelectItem key={device.deviceId} value={device.deviceId}>
+                                                        {device.label || `Camera ${device.deviceId.slice(0, 8)}`}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleVideoToggle}
+                                        className="h-8 px-3"
+                                    >
+                                        {isVideoEnabled ? 'On' : 'Off'}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="space-y-3 pt-4">
+                            <Button onClick={handleJoinSpace} className="w-full">
+                                {isJoining ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : ''}
+                                Join Space
+                            </Button>
+                            <Button variant="outline" onClick={() => router.back()} className="w-full">
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
+        </ProtectedRoute>
     );
 }
