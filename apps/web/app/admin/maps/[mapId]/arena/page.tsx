@@ -21,8 +21,8 @@ interface MapElement {
     name: string;
     imageUrl: string;
     type: string;
-        width: number;
-        height: number;
+    width: number;
+    height: number;
     static: boolean;
 }
 
@@ -95,19 +95,17 @@ export default function MapArenaPage() {
 
                 {/* Bottom Bar */}
                 <div className="flex-shrink-0">
-            <ArenaBottombar
-                userName="John Doe"
-                audioOn={true}
-                videoOn={true}
-                onToggleAudio={() => {}}
-                onToggleVideo={() => {}}
+                    <ArenaBottombar
+                        userName="John Doe"
+                        spaceId={params.mapId as string}
+                        userId={params.mapId as string}
                         onChat={handleChat}
-                onLeave={() => {}}
+                        onLeave={() => {}}
                         onParticipants={handleParticipants}
-                onShareScreen={() => {}}
+                        onShareScreen={() => {}}
                         onEditMap={handleEditMap}
                         isAdmin={true}
-            />
+                    />
                 </div>
             </div>
 
@@ -118,7 +116,9 @@ export default function MapArenaPage() {
             >
                 <div className="flex items-center justify-between p-4 border-b border-gray-800">
                     <span className="font-bold">Chat</span>
-                    <button onClick={() => setIsChatOpen(false)} className="text-gray-400 hover:text-white">✕</button>
+                    <button onClick={() => setIsChatOpen(false)} className="text-gray-400 hover:text-white">
+                        ✕
+                    </button>
                 </div>
                 <div className="flex-1 p-4 overflow-y-auto">
                     <p className="text-muted-foreground">Chat coming soon...</p>
@@ -132,8 +132,10 @@ export default function MapArenaPage() {
             >
                 <div className="flex items-center justify-between p-4 border-b border-gray-800">
                     <span className="font-bold">Participants</span>
-                    <button onClick={() => setIsParticipantsOpen(false)} className="text-gray-400 hover:text-white">✕</button>
-                    </div>
+                    <button onClick={() => setIsParticipantsOpen(false)} className="text-gray-400 hover:text-white">
+                        ✕
+                    </button>
+                </div>
                 <div className="flex-1 p-4 overflow-y-auto">
                     <p className="text-muted-foreground">Participants coming soon...</p>
                 </div>
