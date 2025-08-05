@@ -190,7 +190,7 @@ router.get('/get-all-users-avatars', async (req: Request, res: Response) => {
             },
         });
 
-        const avatarsUrls = allUsers.map((user) => {
+        const avatarsUrls = allUsers.map((user: any) => {
             return {
                 id: user.id,
                 username: user.username,

@@ -91,7 +91,7 @@ adminRouter.post('/create-map', adminMiddleware, async (req: Request, res: Respo
                 width: parseInt(dimensions.split('x')[0]),
                 height: parseInt(dimensions.split('x')[1]),
                 mapElements: {
-                    create: defaultElements.map((element) => ({
+                    create: defaultElements.map((element: any) => ({
                         elementId: element.elementId,
                         x: element.x,
                         y: element.y,
@@ -126,7 +126,7 @@ adminRouter.get('/users', adminMiddleware, async (req: Request, res: Response) =
         });
 
         res.status(200).json({
-            users: users.map((user) => ({
+            users: users.map((user: any) => ({
                 id: user.id,
                 username: user.username,
                 email: user.email,
@@ -296,7 +296,7 @@ adminRouter.get('/maps', adminMiddleware, async (req: Request, res: Response) =>
         });
 
         res.status(200).json({
-            maps: maps.map(map => ({
+            maps: maps.map((map: any) => ({
                 id: map.id,
                 name: map.name,
                 thumbnail: map.thumbnail,
