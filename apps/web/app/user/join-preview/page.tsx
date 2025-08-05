@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -28,7 +28,7 @@ interface SpaceData {
     elements: SpaceElement[];
 }
 
-export default function JoinPreviewPage() {
+function JoinPreviewPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const spaceId = searchParams.get('spaceId');
@@ -368,5 +368,20 @@ export default function JoinPreviewPage() {
                 </div>
             </div>
         </ProtectedRoute>
+    );
+}
+
+export default function JoinPreviewPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading...</p>
+                </div>
+            </div>
+        }>
+            <JoinPreviewPageContent />
+        </Suspense>
     );
 }

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import Phaser from 'phaser';
+import * as Phaser from 'phaser';
 import axios from '@/lib/axios';
 import { isAxiosError } from 'axios';
 
@@ -1151,6 +1151,7 @@ const GameArena = forwardRef<{ handleDeleteSelected?: () => void }, { mapId: str
                 sceneRef.current = null;
             }
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Remove props.mapId from dependencies to prevent recreation
 
     // Update mapId when it changes

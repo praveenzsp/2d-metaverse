@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import ArenaBottombar from '@/components/arena/ArenaBottombar';
 import ArenaTopBar from '@/components/arena/ArenaTopBar';
 import { useRouter } from 'next/navigation';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Suspense } from 'react';
 import axios from '@/lib/axios';
 import ParticipantsSideBar, { Participant } from '@/components/arena/ParticipantsSideBar';
 import ChatSideBar, { ChatMessage } from '@/components/arena/ChatSideBar';
@@ -13,7 +13,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 const UserSpaceArena = dynamic(() => import('@/components/arena/UserSpaceArena'), { ssr: false });
 
-export default function SpacePage() {
+function SpacePageContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const spaceId = searchParams.get('spaceId');
@@ -341,5 +341,20 @@ export default function SpacePage() {
             />
         </div>
         </ProtectedRoute>
+    );
+}
+
+export default function SpacePage() {
+    return (
+        <Suspense fallback={
+            <div className="h-screen w-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading...</p>
+                </div>
+            </div>
+        }>
+            <SpacePageContent />
+        </Suspense>
     );
 }

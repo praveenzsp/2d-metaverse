@@ -67,6 +67,7 @@ const ArenaBottombar: React.FC<ArenaBottombarProps> = ({
         return () => {
             if (videoRef.current) {
                 videoRef.current.srcObject = null;
+                // eslint-disable-next-line react-hooks/exhaustive-deps
                 videoRef.current.load();
             }
         };

@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState, useCallback } from 'react';
-import Phaser from 'phaser';
+import * as Phaser from 'phaser';
 import axios from '@/lib/axios';
 import { isAxiosError } from 'axios';
 import { useWebRTC, ProximityUser } from '@/hooks/useWebRTC';
